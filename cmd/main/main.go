@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	handler2 "loud-question/internal/handler"
 	"loud-question/internal/model"
-	"net/http"
 	"os"
 )
 
@@ -18,13 +17,19 @@ func main() {
 
 	handler.Register(router)
 
-	s := &http.Server{
-		Addr:    ":10000",
-		Handler: router,
+	logger.Info("run server")
+	err := router.Run(":10000")
+	if err != nil {
+		return
 	}
 
-	err := s.ListenAndServe()
-	if err != nil {
-		panic(err)
-	}
+	//s := &http.Server{
+	//	Addr:    ":10000",
+	//	Handler: router,
+	//}
+	//
+	//err := s.ListenAndServe()
+	//if err != nil {
+	//	panic(err)
+	//}
 }

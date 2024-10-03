@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"log/slog"
 	"loud-question/internal/model"
+	ws "loud-question/internal/websocket"
 	"net/http"
 )
 
@@ -56,5 +58,25 @@ func (h *Handler) GetUsers(c *gin.Context) {
 }
 
 func (h *Handler) WsConnect(c *gin.Context) {
+	h.logger.Info("attending to connect ws")
+	conn, err := ws.Upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		h.logger.Error(err.Error())
+		return
+	}
+	defer func(conn *websocket.Conn) {
+		err := conn.Close()
+		if err != nil {
+			h.logger.Error(err.Error())
+			return
+		}
+	}(conn)
 
+	hub := ws.NewHub()
+	go hub.Run()
+
+	client := ws.NewClient(h.logger, hub, conn)
+	client.Hub.Register <- client
+
+	go client.ReadPump()
 }
