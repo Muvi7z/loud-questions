@@ -46,7 +46,7 @@ func (c *Client) ReadPump() {
 	}()
 
 	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	//c.conn.SetReadDeadline(time.Now().Add(pongWait))
 
 	c.conn.SetPongHandler(func(appData string) error {
 		err := c.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -74,5 +74,6 @@ func (c *Client) ReadPump() {
 		}
 
 		fmt.Println(obj)
+		c.Hub.broadcast <- msg
 	}
 }

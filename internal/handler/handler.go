@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"log/slog"
 	"loud-question/internal/model"
 	ws "loud-question/internal/websocket"
@@ -64,13 +63,13 @@ func (h *Handler) WsConnect(c *gin.Context) {
 		h.logger.Error(err.Error())
 		return
 	}
-	defer func(conn *websocket.Conn) {
-		err := conn.Close()
-		if err != nil {
-			h.logger.Error(err.Error())
-			return
-		}
-	}(conn)
+	//defer func(conn *websocket.Conn) {
+	//	err := conn.Close()
+	//	if err != nil {
+	//		h.logger.Error(err.Error())
+	//		return
+	//	}
+	//}(conn)
 
 	hub := ws.NewHub()
 	go hub.Run()
