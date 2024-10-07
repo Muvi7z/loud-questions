@@ -80,6 +80,6 @@ func (s *Service) GetLobby(ctx context.Context, username string) model.Lobby {
 	panic("implement me")
 }
 
-func (s *Service) GetLobbies(ctx context.Context, usernames []string) map[string]model.Lobby {
-	panic("implement me")
+func (s *Service) GetLobbies(ctx context.Context) map[string]model.Lobby {
+	return s.lobbies
 }

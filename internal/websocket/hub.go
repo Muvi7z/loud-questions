@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"loud-question/internal/handler"
 	"loud-question/internal/model"
+	"loud-question/internal/services/lobby"
 )
 
 type Hub struct {
@@ -16,14 +16,14 @@ type Hub struct {
 	unregister   chan *Client
 	Logger       *slog.Logger
 	lobby        model.Lobby
-	lobbyService handler.LobbyService
+	lobbyService lobby.LobbyService
 }
 
 const (
 	createLobby = "createLobby"
 )
 
-func NewHub(logger *slog.Logger, lobbyService handler.LobbyService) *Hub {
+func NewHub(logger *slog.Logger, lobbyService lobby.LobbyService) *Hub {
 	return &Hub{
 		Clients:      make(map[*Client]bool),
 		broadcast:    make(chan []byte),
@@ -47,38 +47,41 @@ func (h *Hub) Run() {
 			}
 		case message := <-h.broadcast:
 			for client := range h.Clients {
-				select {
-				case client.send <- message:
 
-					var msgDto Message
+				var msgDto Message
 
-					err := json.Unmarshal(message, &msgDto)
-					if err != nil {
-						h.Logger.Error(err.Error())
-						return
-					}
-
-					fmt.Println(msgDto.Type, msgDto.Data)
-
-					switch msgDto.Type {
-					case createLobby:
-						if clDto, ok := msgDto.Data["userId"]; ok {
-							userId, ok := clDto.(string)
-							if !ok {
-								h.Logger.Error(err.Error())
-							}
-							lobby, err := h.lobbyService.CreateLobby(context.Background(), userId)
-							if err != nil {
-								h.Logger.Error(err.Error())
-								return
-							}
-							h.lobby = lobby
-						}
-					}
-				default:
-					close(client.send)
-					delete(h.Clients, client)
+				err := json.Unmarshal(message, &msgDto)
+				if err != nil {
+					h.Logger.Error(err.Error())
+					return
 				}
+
+				fmt.Println(msgDto.Type, msgDto.Data)
+				switch msgDto.Type {
+				case createLobby:
+					if clDto, ok := msgDto.Data["userId"]; ok {
+						userId, ok := clDto.(string)
+						if !ok {
+							h.Logger.Error(err.Error())
+						}
+						lobby, err := h.lobbyService.CreateLobby(context.Background(), userId)
+						if err != nil {
+							h.Logger.Error(err.Error())
+							msg, _ := json.Marshal(ErrorMessage{
+								Message: err.Error(),
+								Code:    "404",
+							})
+							client.send <- msg
+						}
+						h.lobby = lobby
+					}
+				}
+				//select {
+				//case client.send <- message:
+				//default:
+				//	close(client.send)
+				//	delete(h.Clients, client)
+				//}
 			}
 		}
 	}

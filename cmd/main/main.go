@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	handler2 "loud-question/internal/handler"
 	"loud-question/internal/model"
+	"loud-question/internal/services/lobby"
 	"net/http"
 	"os"
 )
@@ -14,7 +15,9 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	handler := handler2.NewHandler(logger, make(map[string]model.User))
+	lobbyService := lobby.New(logger, make(map[string]model.User))
+
+	handler := handler2.NewHandler(logger, lobbyService)
 
 	handler.Register(router)
 

@@ -5,24 +5,17 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"log/slog"
-	"loud-question/internal/model"
+	"loud-question/internal/services/lobby"
 	ws "loud-question/internal/websocket"
 	"net/http"
 )
 
 type Handler struct {
 	logger       *slog.Logger
-	lobbyService LobbyService
+	lobbyService lobby.LobbyService
 }
 
-type LobbyService interface {
-	AddUser(ctx context.Context, username string) string
-	GetUser(ctx context.Context, id string) model.User
-	GetUsers(ctx context.Context) (map[string]model.User, error)
-	CreateLobby(ctx context.Context, userId string) (model.Lobby, error)
-}
-
-func NewHandler(logger *slog.Logger, lobbyService LobbyService) *Handler {
+func NewHandler(logger *slog.Logger, lobbyService lobby.LobbyService) *Handler {
 	return &Handler{
 		logger:       logger,
 		lobbyService: lobbyService,
@@ -34,6 +27,7 @@ func (h *Handler) Register(router *gin.Engine) *gin.Engine {
 	router.POST("/joinLobby", h.WsConnect)
 	router.POST("/signUp", h.SignUp)
 	router.GET("/users", h.GetUsers)
+	router.GET("/lobbies", h.GetLobbies)
 	return router
 }
 
@@ -58,6 +52,12 @@ func (h *Handler) GetUsers(c *gin.Context) {
 	fmt.Println(users)
 
 	c.JSON(200, users)
+}
+func (h *Handler) GetLobbies(c *gin.Context) {
+	lobbies := h.lobbyService.GetLobbies(context.Background())
+	fmt.Println(lobbies)
+
+	c.JSON(200, lobbies)
 }
 
 func (h *Handler) WsConnect(c *gin.Context) {
