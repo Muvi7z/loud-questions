@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"log/slog"
 	"loud-question/internal/model"
 	ws "loud-question/internal/websocket"
@@ -11,19 +11,27 @@ import (
 )
 
 type Handler struct {
-	logger *slog.Logger
-	users  map[string]model.User
+	logger       *slog.Logger
+	lobbyService LobbyService
 }
 
-func NewHandler(logger *slog.Logger, users map[string]model.User) *Handler {
+type LobbyService interface {
+	AddUser(ctx context.Context, username string) string
+	GetUser(ctx context.Context, id string) model.User
+	GetUsers(ctx context.Context) (map[string]model.User, error)
+	CreateLobby(ctx context.Context, userId string) (model.Lobby, error)
+}
+
+func NewHandler(logger *slog.Logger, lobbyService LobbyService) *Handler {
 	return &Handler{
-		logger: logger,
-		users:  users,
+		logger:       logger,
+		lobbyService: lobbyService,
 	}
 }
 
 func (h *Handler) Register(router *gin.Engine) *gin.Engine {
-	router.GET("/ws", h.WsConnect)
+	router.GET("/createLobby", h.WsConnect)
+	router.POST("/joinLobby", h.WsConnect)
 	router.POST("/signUp", h.SignUp)
 	router.GET("/users", h.GetUsers)
 	return router
@@ -40,20 +48,16 @@ func (h *Handler) SignUp(c *gin.Context) {
 		return
 	}
 
-	u := model.User{
-		Uuid:     uuid.New().String(),
-		Username: createUser.Username,
-	}
+	uuid := h.lobbyService.AddUser(context.Background(), createUser.Username)
 
-	h.users[u.Uuid] = u
-
-	c.JSON(200, gin.H{"token": u.Uuid})
+	c.JSON(200, gin.H{"token": uuid})
 }
 
 func (h *Handler) GetUsers(c *gin.Context) {
-	fmt.Println(h.users)
+	users, _ := h.lobbyService.GetUsers(context.Background())
+	fmt.Println(users)
 
-	c.JSON(200, h.users)
+	c.JSON(200, users)
 }
 
 func (h *Handler) WsConnect(c *gin.Context) {
@@ -71,11 +75,12 @@ func (h *Handler) WsConnect(c *gin.Context) {
 	//	}
 	//}(conn)
 
-	hub := ws.NewHub()
+	hub := ws.NewHub(h.logger, h.lobbyService)
 	go hub.Run()
 
-	client := ws.NewClient(h.logger, hub, conn)
+	client := ws.NewClient(hub, conn)
 	client.Hub.Register <- client
 
+	go client.WritePump()
 	go client.ReadPump()
 }

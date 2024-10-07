@@ -1,10 +1,9 @@
 package websocket
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
-	"log/slog"
+	"loud-question/internal/model"
 	"time"
 )
 
@@ -21,18 +20,22 @@ var Upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	Hub    *Hub
-	conn   *websocket.Conn
-	send   chan []byte
-	Logger *slog.Logger
+	Hub  *Hub
+	conn *websocket.Conn
+	send chan []byte
+	User model.User
 }
 
-func NewClient(logger *slog.Logger, hub *Hub, conn *websocket.Conn) *Client {
+type Message struct {
+	Type string         `json:"type"`
+	Data map[string]any `json:"data"`
+}
+
+func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 	return &Client{
-		Hub:    hub,
-		conn:   conn,
-		send:   make(chan []byte, 256),
-		Logger: logger,
+		Hub:  hub,
+		conn: conn,
+		send: make(chan []byte, 256),
 	}
 }
 
@@ -64,16 +67,55 @@ func (c *Client) ReadPump() {
 			break
 		}
 
-		var obj = struct {
-			Type string
-		}{}
+		c.Hub.broadcast <- msg
+	}
+}
 
-		err = json.Unmarshal(msg, &obj)
+func (c *Client) WritePump() {
+	ticker := time.NewTicker(pingPeriod)
+
+	defer func() {
+		ticker.Stop()
+		err := c.conn.Close()
 		if err != nil {
 			return
 		}
+	}()
 
-		fmt.Println(obj)
-		c.Hub.broadcast <- msg
+	for {
+		select {
+		case msg, ok := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				err := c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err != nil {
+				}
+				return
+			}
+
+			w, err := c.conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+
+			fmt.Println(len(c.send))
+
+			//dataBytes, err := json.Marshal(msg)
+			//if err != nil {
+			//	return
+			//}
+			w.Write(msg)
+
+			if err := w.Close(); err != nil {
+				return
+			}
+
+		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+
 	}
 }
