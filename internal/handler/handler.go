@@ -13,6 +13,7 @@ import (
 type Handler struct {
 	logger       *slog.Logger
 	lobbyService lobby.LobbyService
+	userService  lobby.UserService
 }
 
 func NewHandler(logger *slog.Logger, lobbyService lobby.LobbyService) *Handler {
@@ -42,13 +43,13 @@ func (h *Handler) SignUp(c *gin.Context) {
 		return
 	}
 
-	uuid := h.lobbyService.AddUser(context.Background(), createUser.Username)
+	uuid := h.userService.AddUser(context.Background(), createUser.Username)
 
 	c.JSON(200, gin.H{"token": uuid})
 }
 
 func (h *Handler) GetUsers(c *gin.Context) {
-	users, _ := h.lobbyService.GetUsers(context.Background())
+	users, _ := h.userService.GetUsers(context.Background())
 	fmt.Println(users)
 
 	c.JSON(200, users)
