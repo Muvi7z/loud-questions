@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"loud-question/internal/model"
 	"loud-question/internal/services/lobby"
 )
 
@@ -15,12 +14,12 @@ type Hub struct {
 	Register     chan *Client
 	unregister   chan *Client
 	Logger       *slog.Logger
-	lobby        model.Lobby
 	lobbyService lobby.LobbyService
 }
 
 const (
 	createLobby = "createLobby"
+	joinLobby   = "joinLobby"
 )
 
 func NewHub(logger *slog.Logger, lobbyService lobby.LobbyService) *Hub {
@@ -64,17 +63,21 @@ func (h *Hub) Run() {
 						if !ok {
 							h.Logger.Error(err.Error())
 						}
-						lobby, err := h.lobbyService.CreateLobby(context.Background(), userId)
+						l, err := h.lobbyService.CreateLobby(context.Background(), userId)
 						if err != nil {
 							h.Logger.Error(err.Error())
 							msg, _ := json.Marshal(ErrorMessage{
 								Message: err.Error(),
 								Code:    "404",
 							})
+							client.lobbyId = l.Id
 							client.send <- msg
 						}
-						h.lobby = lobby
+
+						l.Owner = "ss"
 					}
+				case joinLobby:
+
 				}
 				//select {
 				//case client.send <- message:

@@ -6,6 +6,7 @@ import (
 	handler2 "loud-question/internal/handler"
 	"loud-question/internal/model"
 	"loud-question/internal/services/lobby"
+	ws "loud-question/internal/websocket"
 	"net/http"
 	"os"
 )
@@ -14,10 +15,18 @@ func main() {
 	router := gin.Default()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	u := make(map[string]model.User)
+	u["13ebe966-acaf-4d98-9014-7bb8527d00ae"] = model.User{
+		Uuid:     "13ebe966-acaf-4d98-9014-7bb8527d00ae",
+		Username: "Muvi",
+		Score:    0,
+	}
+	lobbyService := lobby.New(logger, u)
 
-	lobbyService := lobby.New(logger, make(map[string]model.User))
+	hub := ws.NewHub(logger, lobbyService)
+	go hub.Run()
 
-	handler := handler2.NewHandler(logger, lobbyService)
+	handler := handler2.NewHandler(logger, lobbyService, lobbyService, hub)
 
 	handler.Register(router)
 

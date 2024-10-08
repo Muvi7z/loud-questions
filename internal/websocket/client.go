@@ -20,10 +20,11 @@ var Upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	Hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
-	User model.User
+	Hub     *Hub
+	conn    *websocket.Conn
+	send    chan []byte
+	User    model.User
+	lobbyId string
 }
 
 type Message struct {

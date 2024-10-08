@@ -9,6 +9,7 @@ import (
 	"loud-question/internal/model"
 )
 
+// Service
 type Service struct {
 	logger  *slog.Logger
 	users   map[string]model.User
@@ -52,7 +53,7 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (model.Lobby, 
 	}
 
 	sqid, _ := sqids.New(sqids.Options{
-		Blocklist: []string{"86Rf07"},
+		Blocklist: allId,
 	})
 	id, _ := sqid.Encode([]uint64{1, 2, 3})
 

@@ -7,6 +7,7 @@ import (
 
 type LobbyService interface {
 	CreateLobby(ctx context.Context, userId string) (model.Lobby, error)
+	UpdateLobby(ctx context.Context, userId string) (model.Lobby, error)
 	GetLobbies(ctx context.Context) map[string]model.Lobby
 }
 
