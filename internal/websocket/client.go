@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"loud-question/internal/model"
+	"loud-question/internal/services/lobby"
 	"time"
 )
 
@@ -20,11 +21,12 @@ var Upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	Hub     *Hub
-	conn    *websocket.Conn
-	send    chan []byte
-	User    model.User
-	lobbyId string
+	Hub          *Hub
+	conn         *websocket.Conn
+	send         chan []byte
+	User         model.User
+	lobbyService lobby.LobbyService
+	lobbyId      string
 }
 
 type Message struct {
@@ -67,6 +69,16 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
+
+		hub := NewHub()
+
+		// создаем или подключаемся к лобби
+
+		//обращаемся в сервис для создания, возвращает лобби
+
+		//через горутину запускаем слушителя сообщений в лобби
+
+		//там будут методы для изменения локального лобби игры
 
 		c.Hub.broadcast <- msg
 	}

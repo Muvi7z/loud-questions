@@ -14,21 +14,19 @@ type Handler struct {
 	logger       *slog.Logger
 	lobbyService lobby.LobbyService
 	userService  lobby.UserService
-	hub          *ws.Hub
 }
 
-func NewHandler(logger *slog.Logger, lobbyService lobby.LobbyService, userService lobby.UserService, hub *ws.Hub) *Handler {
+func NewHandler(logger *slog.Logger, lobbyService lobby.LobbyService, userService lobby.UserService, hubs []*ws.Hub) *Handler {
 	return &Handler{
 		logger:       logger,
 		lobbyService: lobbyService,
 		userService:  userService,
-		hub:          hub,
+		hubs:         hubs,
 	}
 }
 
 func (h *Handler) Register(router *gin.Engine) *gin.Engine {
 	router.GET("/ws", h.WsConnect)
-	router.POST("/joinLobby", h.WsConnect)
 	router.POST("/signUp", h.SignUp)
 	router.GET("/users", h.GetUsers)
 	router.GET("/lobbies", h.GetLobbies)
