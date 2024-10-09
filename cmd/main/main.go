@@ -6,7 +6,6 @@ import (
 	handler2 "loud-question/internal/handler"
 	"loud-question/internal/model"
 	"loud-question/internal/services/lobby"
-	ws "loud-question/internal/websocket"
 	"net/http"
 	"os"
 )
@@ -23,10 +22,7 @@ func main() {
 	}
 	lobbyService := lobby.New(logger, u)
 
-	hub := ws.NewHub(logger, lobbyService)
-	go hub.Run()
-
-	handler := handler2.NewHandler(logger, lobbyService, lobbyService, hub)
+	handler := handler2.NewHandler(logger, lobbyService, lobbyService)
 
 	handler.Register(router)
 

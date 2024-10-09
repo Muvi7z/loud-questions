@@ -1,10 +1,12 @@
 package websocket
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"log/slog"
 	"loud-question/internal/model"
-	"loud-question/internal/services/lobby"
 	"time"
 )
 
@@ -23,10 +25,10 @@ var Upgrader = websocket.Upgrader{
 type Client struct {
 	Hub          *Hub
 	conn         *websocket.Conn
-	send         chan []byte
+	Send         chan []byte
 	User         model.User
-	lobbyService lobby.LobbyService
-	lobbyId      string
+	lobbyService LobbyService
+	logger       *slog.Logger
 }
 
 type Message struct {
@@ -34,17 +36,21 @@ type Message struct {
 	Data map[string]any `json:"data"`
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, logger *slog.Logger) *Client {
 	return &Client{
-		Hub:  hub,
-		conn: conn,
-		send: make(chan []byte, 256),
+		Hub:          hub,
+		conn:         conn,
+		lobbyService: lobbyService,
+		logger:       logger,
+		Send:         make(chan []byte, 256),
 	}
 }
 
 func (c *Client) ReadPump() {
 	defer func() {
-		c.Hub.unregister <- c
+		if c.Hub != nil {
+			c.Hub.Unregister <- c
+		}
 		err := c.conn.Close()
 		if err != nil {
 			return
@@ -70,17 +76,60 @@ func (c *Client) ReadPump() {
 			break
 		}
 
-		hub := NewHub()
+		var msgDto Message
 
-		// создаем или подключаемся к лобби
+		err = json.Unmarshal(msg, &msgDto)
+		if err != nil {
+			c.logger.Error(err.Error())
+			return
+		}
 
-		//обращаемся в сервис для создания, возвращает лобби
+		switch msgDto.Type {
+		case createLobby:
+			if clDto, ok := msgDto.Data["userId"]; ok {
+				userId, ok := clDto.(string)
+				if !ok {
+					c.logger.Error(err.Error())
+				}
+				hub, err := c.lobbyService.CreateLobby(context.Background(), userId)
+				if err != nil {
+					c.logger.Error(err.Error())
+					msg, _ := json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    "404",
+					})
+					c.Send <- msg
+					break
+				}
+				go hub.Run()
 
-		//через горутину запускаем слушителя сообщений в лобби
+				lobbyDto := GetLobbyDto{
+					Id:       hub.Id,
+					Owner:    hub.Lobby.Owner,
+					Players:  hub.Lobby.Players,
+					Settings: hub.Lobby.Settings,
+				}
+
+				res, _ := json.Marshal(&lobbyDto)
+
+				c.Send <- res
+			}
+		case joinLobby:
+			//if clDto, ok := msgDto.Data["userId"]; ok {
+			//
+			//}
+		default:
+
+		}
+
+		// создаем или подключаемся к хабу
+
+		//обращаемся в сервис для создания, возвращает хабу
+
+		//через горутину запускаем слушителя сообщений в хабу
 
 		//там будут методы для изменения локального лобби игры
 
-		c.Hub.broadcast <- msg
 	}
 }
 
@@ -97,7 +146,7 @@ func (c *Client) WritePump() {
 
 	for {
 		select {
-		case msg, ok := <-c.send:
+		case msg, ok := <-c.Send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				err := c.conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -111,7 +160,7 @@ func (c *Client) WritePump() {
 				return
 			}
 
-			fmt.Println(len(c.send))
+			fmt.Println(len(c.Send))
 
 			//dataBytes, err := json.Marshal(msg)
 			//if err != nil {

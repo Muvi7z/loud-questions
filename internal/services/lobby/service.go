@@ -7,20 +7,21 @@ import (
 	"github.com/sqids/sqids-go"
 	"log/slog"
 	"loud-question/internal/model"
+	"loud-question/internal/websocket"
 )
 
 // Service
 type Service struct {
-	logger  *slog.Logger
-	users   map[string]model.User
-	lobbies map[string]model.Lobby
+	logger *slog.Logger
+	users  map[string]model.User
+	hubs   map[string]websocket.Hub
 }
 
 func New(log *slog.Logger, users map[string]model.User) *Service {
 	return &Service{
-		logger:  log,
-		users:   users,
-		lobbies: make(map[string]model.Lobby),
+		logger: log,
+		users:  users,
+		hubs:   make(map[string]websocket.Hub),
 	}
 }
 
@@ -43,12 +44,12 @@ func (s *Service) GetUsers(ctx context.Context) (map[string]model.User, error) {
 	return s.users, nil
 }
 
-func (s *Service) CreateLobby(ctx context.Context, userId string) (model.Lobby, error) {
-	allId := make([]string, len(s.lobbies)*2)
+func (s *Service) CreateLobby(ctx context.Context, userId string) (websocket.Hub, error) {
+	allId := make([]string, len(s.hubs)*2)
 
 	i := 0
-	for k, _ := range s.lobbies {
-		allId[i] = k
+	for _, h := range s.hubs {
+		allId[i] = h.Id
 		i++
 	}
 
@@ -62,25 +63,42 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (model.Lobby, 
 	u, ok := s.users[userId]
 	if !ok {
 		s.logger.Error("user not found", userId)
-		return model.Lobby{}, errors.New("user not found")
+		return websocket.Hub{}, errors.New("user not found")
 	}
 
 	l := model.Lobby{
-		Id:       id,
 		Owner:    userId,
 		Players:  []model.User{u},
 		Settings: model.SettingsLobby{},
 	}
 
-	s.lobbies[id] = l
+	hub := websocket.NewHub(s.logger, s, userId, l)
 
-	return l, nil
+	hub.Lobby = l
+
+	s.hubs[id] = *hub
+
+	return *hub, nil
+}
+
+func (s *Service) JoinLobby(ctx context.Context, lobbyId string) websocket.Hub {
+	panic("imp")
 }
 
 func (s *Service) GetLobby(ctx context.Context, username string) model.Lobby {
 	panic("implement me")
 }
 
-func (s *Service) GetLobbies(ctx context.Context) map[string]model.Lobby {
-	return s.lobbies
+func (s *Service) GetLobbies(ctx context.Context) map[string]websocket.GetLobbyDto {
+	ls := make(map[string]websocket.GetLobbyDto)
+
+	for k, v := range s.hubs {
+		ls[k] = websocket.GetLobbyDto{
+			Id:       v.Id,
+			Owner:    v.Lobby.Owner,
+			Players:  v.Lobby.Players,
+			Settings: v.Lobby.Settings,
+		}
+	}
+	return ls
 }

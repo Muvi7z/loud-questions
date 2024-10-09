@@ -5,23 +5,21 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"log/slog"
-	"loud-question/internal/services/lobby"
 	ws "loud-question/internal/websocket"
 	"net/http"
 )
 
 type Handler struct {
 	logger       *slog.Logger
-	lobbyService lobby.LobbyService
-	userService  lobby.UserService
+	lobbyService ws.LobbyService
+	userService  ws.UserService
 }
 
-func NewHandler(logger *slog.Logger, lobbyService lobby.LobbyService, userService lobby.UserService, hubs []*ws.Hub) *Handler {
+func NewHandler(logger *slog.Logger, lobbyService ws.LobbyService, userService ws.UserService) *Handler {
 	return &Handler{
 		logger:       logger,
 		lobbyService: lobbyService,
 		userService:  userService,
-		hubs:         hubs,
 	}
 }
 
@@ -77,8 +75,7 @@ func (h *Handler) WsConnect(c *gin.Context) {
 	//	}
 	//}(conn)
 
-	client := ws.NewClient(h.hub, conn)
-	client.Hub.Register <- client
+	client := ws.NewClient(nil, conn, h.lobbyService, h.logger)
 
 	go client.WritePump()
 	go client.ReadPump()
