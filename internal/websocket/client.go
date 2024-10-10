@@ -32,8 +32,8 @@ type Client struct {
 }
 
 type Message struct {
-	Type string         `json:"type"`
-	Data map[string]any `json:"data"`
+	Type string `json:"type"`
+	Data any    `json:"data"`
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, logger *slog.Logger) *Client {
@@ -86,6 +86,7 @@ func (c *Client) ReadPump() {
 
 		switch msgDto.Type {
 		case createLobby:
+			с := msgDto.Data.(CreateLobbyDto)
 			if clDto, ok := msgDto.Data["userId"]; ok {
 				userId, ok := clDto.(string)
 				if !ok {
@@ -115,9 +116,13 @@ func (c *Client) ReadPump() {
 				c.Send <- res
 			}
 		case joinLobby:
-			//if clDto, ok := msgDto.Data["userId"]; ok {
-			//
-			//}
+			if userId, ok := msgDto.Data["userId"]; ok {
+				if lobbyId, ok := msgDto.Data["lobbyId"]; ok {
+
+				}
+
+			}
+
 		default:
 
 		}
