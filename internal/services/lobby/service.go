@@ -36,15 +36,19 @@ func (s *Service) AddUser(ctx context.Context, username string) string {
 	return u.Uuid
 }
 
-func (s *Service) GetUser(ctx context.Context, id string) model.User {
-	return s.users[id]
+func (s *Service) GetUser(ctx context.Context, id string) (model.User, error) {
+	u, ok := s.users[id]
+	if !ok {
+		return model.User{}, errors.New("not found user")
+	}
+	return u, nil
 }
 
 func (s *Service) GetUsers(ctx context.Context) (map[string]model.User, error) {
 	return s.users, nil
 }
 
-func (s *Service) CreateLobby(ctx context.Context, userId string) (websocket.Hub, error) {
+func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hub, error) {
 	allId := make([]string, len(s.hubs)*2)
 
 	i := 0
@@ -63,7 +67,7 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (websocket.Hub
 	u, ok := s.users[userId]
 	if !ok {
 		s.logger.Error("user not found", userId)
-		return websocket.Hub{}, errors.New("user not found")
+		return nil, errors.New("user not found")
 	}
 
 	l := model.Lobby{
@@ -72,17 +76,32 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (websocket.Hub
 		Settings: model.SettingsLobby{},
 	}
 
-	hub := websocket.NewHub(s.logger, s, userId, l)
+	hub := websocket.NewHub(s.logger, s, id, l)
 
 	hub.Lobby = l
 
 	s.hubs[id] = *hub
 
-	return *hub, nil
+	return hub, nil
 }
 
-func (s *Service) JoinLobby(ctx context.Context, lobbyId string) websocket.Hub {
-	panic("imp")
+func (s *Service) JoinLobby(ctx context.Context, client *websocket.Client, lobbyId string, userId string) (*websocket.Hub, error) {
+	if h, ok := s.hubs[lobbyId]; ok {
+
+		u, err := s.GetUser(ctx, userId)
+		if err != nil {
+			return nil, err
+		}
+		client.User = u
+
+		h.Lobby.Players = append(h.Lobby.Players, client.User)
+		h.Register <- client
+
+		s.hubs[lobbyId] = h
+
+		return &h, nil
+	}
+	return nil, errors.New("not found lobby")
 }
 
 func (s *Service) GetLobby(ctx context.Context, username string) model.Lobby {

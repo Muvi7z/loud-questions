@@ -20,6 +20,11 @@ func main() {
 		Username: "Muvi",
 		Score:    0,
 	}
+	u["3dd1a57c-a3b3-487a-babf-a2fc79a785cb"] = model.User{
+		Uuid:     "3dd1a57c-a3b3-487a-babf-a2fc79a785cb",
+		Username: "Haachamacha",
+		Score:    0,
+	}
 	lobbyService := lobby.New(logger, u)
 
 	handler := handler2.NewHandler(logger, lobbyService, lobbyService)

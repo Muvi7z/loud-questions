@@ -9,21 +9,25 @@ import (
 )
 
 type LobbyService interface {
-	CreateLobby(ctx context.Context, userId string) (Hub, error)
+	CreateLobby(ctx context.Context, userId string) (*Hub, error)
 	GetLobbies(ctx context.Context) map[string]GetLobbyDto
-	JoinLobby(ctx context.Context, lobbyId string) Hub
+	JoinLobby(ctx context.Context, client *Client, lobbyId string, userId string) (*Hub, error)
 }
 
 type UserService interface {
 	AddUser(ctx context.Context, username string) string
-	GetUser(ctx context.Context, id string) model.User
+	GetUser(ctx context.Context, id string) (model.User, error)
 	GetUsers(ctx context.Context) (map[string]model.User, error)
 }
+
+const (
+	sendMessage = "sendMessage"
+)
 
 type Hub struct {
 	Id           string
 	Clients      map[string]*Client
-	Broadcast    chan []byte
+	Broadcast    chan Message
 	Register     chan *Client
 	Unregister   chan *Client
 	Logger       *slog.Logger
@@ -40,7 +44,7 @@ func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby mod
 	return &Hub{
 		Id:           id,
 		Clients:      make(map[string]*Client),
-		Broadcast:    make(chan []byte),
+		Broadcast:    make(chan Message),
 		Register:     make(chan *Client),
 		Unregister:   make(chan *Client),
 		Logger:       logger,
@@ -63,29 +67,26 @@ func (h *Hub) Run() {
 				close(client.Send)
 			}
 		case message := <-h.Broadcast:
-			for _, client := range h.Clients {
+			fmt.Println(h.Clients)
+			msgByte, err := json.Marshal(message)
+			if err != nil {
+				h.Logger.Error("ошибка при выполнении marshal")
+				break
+			}
 
-				var msgDto Message
-
-				err := json.Unmarshal(message, &msgDto)
-				if err != nil {
-					h.Logger.Error(err.Error())
-					return
+			switch message.Type {
+			case sendMessage:
+				for _, client := range h.Clients {
+					if client.User.Uuid != message.SendBy {
+						client.Send <- msgByte
+						//select {
+						//case client.send <- message:
+						//default:
+						//	close(client.send)
+						//	delete(h.Clients, client)
+						//}
+					}
 				}
-
-				fmt.Println(msgDto.Type, msgDto.Data)
-				switch msgDto.Type {
-				case createLobby:
-					fmt.Println(client, h.Lobby)
-				case joinLobby:
-
-				}
-				//select {
-				//case client.send <- message:
-				//default:
-				//	close(client.send)
-				//	delete(h.Clients, client)
-				//}
 			}
 		}
 	}

@@ -11,6 +11,11 @@ type CreateLobbyDto struct {
 	UserId string `json:"userId"`
 }
 
+type JoinLobbyDto struct {
+	UserId  string `json:"userId"`
+	LobbyId string `json:"lobbyId"`
+}
+
 type GetLobbyDto struct {
 	Id       string              `json:"id"`
 	Owner    string              `json:"owner"`

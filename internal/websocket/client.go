@@ -32,8 +32,9 @@ type Client struct {
 }
 
 type Message struct {
-	Type string `json:"type"`
-	Data any    `json:"data"`
+	Type   string         `json:"type"`
+	SendBy string         `json:"sendBy"`
+	Data   map[string]any `json:"data"`
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, logger *slog.Logger) *Client {
@@ -86,12 +87,10 @@ func (c *Client) ReadPump() {
 
 		switch msgDto.Type {
 		case createLobby:
-			с := msgDto.Data.(CreateLobbyDto)
-			if clDto, ok := msgDto.Data["userId"]; ok {
-				userId, ok := clDto.(string)
-				if !ok {
-					c.logger.Error(err.Error())
-				}
+			c.logger.Info("attending to create lobby")
+			fmt.Println(msgDto.Data)
+			if userId, ok := msgDto.Data["userId"].(string); ok {
+
 				hub, err := c.lobbyService.CreateLobby(context.Background(), userId)
 				if err != nil {
 					c.logger.Error(err.Error())
@@ -103,6 +102,52 @@ func (c *Client) ReadPump() {
 					break
 				}
 				go hub.Run()
+				c.Hub = hub
+				c.Hub.Register <- c
+
+				lobbyDto := GetLobbyDto{
+					Id:       hub.Id,
+					Owner:    hub.Lobby.Owner,
+					Players:  hub.Lobby.Players,
+					Settings: hub.Lobby.Settings,
+				}
+
+				res, _ := json.Marshal(&lobbyDto)
+
+				c.Send <- res
+			} else {
+				c.logger.Error("Ошибка преобразования")
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: "invalid credentials",
+					Code:    "400",
+				})
+				c.Send <- msg
+			}
+
+		case joinLobby:
+			if lobbyId, ok := msgDto.Data["lobbyId"].(string); ok {
+				userId, ok := msgDto.Data["userId"].(string)
+				if !ok {
+					msg, _ := json.Marshal(ErrorMessage{
+						Message: "invalid credentials",
+						Code:    "404",
+					})
+					c.Send <- msg
+					break
+				}
+				c.logger.Info("attending to join lobby", lobbyId)
+				hub, err := c.lobbyService.JoinLobby(context.Background(), c, lobbyId, userId)
+				if err != nil {
+					c.logger.Error(err.Error())
+					msg, _ := json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    "404",
+					})
+					c.Send <- msg
+					break
+				}
+
+				c.Hub = hub
 
 				lobbyDto := GetLobbyDto{
 					Id:       hub.Id,
@@ -115,15 +160,11 @@ func (c *Client) ReadPump() {
 
 				c.Send <- res
 			}
-		case joinLobby:
-			if userId, ok := msgDto.Data["userId"]; ok {
-				if lobbyId, ok := msgDto.Data["lobbyId"]; ok {
-
-				}
-
-			}
-
 		default:
+			if c.Hub != nil {
+				msgDto.SendBy = c.User.Uuid
+				c.Hub.Broadcast <- msgDto
+			}
 
 		}
 
