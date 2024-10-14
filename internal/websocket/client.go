@@ -28,6 +28,7 @@ type Client struct {
 	Send         chan []byte
 	User         model.User
 	lobbyService LobbyService
+	userService  UserService
 	logger       *slog.Logger
 }
 
@@ -37,11 +38,12 @@ type Message struct {
 	Data   map[string]any `json:"data"`
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, logger *slog.Logger) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, userService UserService, logger *slog.Logger) *Client {
 	return &Client{
 		Hub:          hub,
 		conn:         conn,
 		lobbyService: lobbyService,
+		userService:  userService,
 		logger:       logger,
 		Send:         make(chan []byte, 256),
 	}
@@ -50,7 +52,7 @@ func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, logger
 func (c *Client) ReadPump() {
 	defer func() {
 		if c.Hub != nil {
-			c.Hub.Unregister <- c
+			//c.Hub.Unregister <- c
 		}
 		err := c.conn.Close()
 		if err != nil {
@@ -87,11 +89,13 @@ func (c *Client) ReadPump() {
 
 		switch msgDto.Type {
 		case createLobby:
+			// Добавить удаление из предыдущего лобби
 			c.logger.Info("attending to create lobby")
+			ctx := context.Background()
 			fmt.Println(msgDto.Data)
 			if userId, ok := msgDto.Data["userId"].(string); ok {
 
-				hub, err := c.lobbyService.CreateLobby(context.Background(), userId)
+				hub, err := c.lobbyService.CreateLobby(ctx, userId)
 				if err != nil {
 					c.logger.Error(err.Error())
 					msg, _ := json.Marshal(ErrorMessage{
@@ -101,6 +105,18 @@ func (c *Client) ReadPump() {
 					c.Send <- msg
 					break
 				}
+
+				c.User, err = c.userService.GetUser(ctx, userId)
+				if err != nil {
+					c.logger.Error(err.Error())
+					msg, _ := json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    "404",
+					})
+					c.Send <- msg
+					break
+				}
+
 				go hub.Run()
 				c.Hub = hub
 				c.Hub.Register <- c
@@ -136,7 +152,9 @@ func (c *Client) ReadPump() {
 					break
 				}
 				c.logger.Info("attending to join lobby", lobbyId)
-				hub, err := c.lobbyService.JoinLobby(context.Background(), c, lobbyId, userId)
+
+				ctx := context.Background()
+				hub, err := c.lobbyService.JoinLobby(ctx, c, lobbyId, userId)
 				if err != nil {
 					c.logger.Error(err.Error())
 					msg, _ := json.Marshal(ErrorMessage{
@@ -147,7 +165,18 @@ func (c *Client) ReadPump() {
 					break
 				}
 
+				c.User, err = c.userService.GetUser(ctx, userId)
+				if err != nil {
+					c.logger.Error(err.Error())
+					msg, _ := json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    "404",
+					})
+					c.Send <- msg
+					break
+				}
 				c.Hub = hub
+				c.Hub.Register <- c
 
 				lobbyDto := GetLobbyDto{
 					Id:       hub.Id,

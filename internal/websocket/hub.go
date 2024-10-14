@@ -12,6 +12,7 @@ type LobbyService interface {
 	CreateLobby(ctx context.Context, userId string) (*Hub, error)
 	GetLobbies(ctx context.Context) map[string]GetLobbyDto
 	JoinLobby(ctx context.Context, client *Client, lobbyId string, userId string) (*Hub, error)
+	DeleteLobby(ctx context.Context, idLobby string) error
 }
 
 type UserService interface {
@@ -38,6 +39,7 @@ type Hub struct {
 const (
 	createLobby = "createLobby"
 	joinLobby   = "joinLobby"
+	deleteLobby = "deleteLobby"
 )
 
 func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby model.Lobby) *Hub {
@@ -55,11 +57,11 @@ func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby mod
 
 func (h *Hub) Run() {
 	for {
+		fmt.Println(fmt.Sprintf("run hub %s", h.Id))
 		select {
 		case client := <-h.Register:
 			clientId := client.User.Uuid
 			h.Clients[clientId] = client
-
 		case client := <-h.Unregister:
 			clientId := client.User.Uuid
 			if _, ok := h.Clients[clientId]; ok {
@@ -68,16 +70,32 @@ func (h *Hub) Run() {
 			}
 		case message := <-h.Broadcast:
 			fmt.Println(h.Clients)
-			msgByte, err := json.Marshal(message)
-			if err != nil {
-				h.Logger.Error("ошибка при выполнении marshal")
-				break
-			}
 
 			switch message.Type {
+			case deleteLobby:
+				for _, client := range h.Clients {
+					close(client.Send)
+
+					delete(h.Clients, client.User.Uuid)
+				}
+				close(h.Register)
+				close(h.Unregister)
+				close(h.Broadcast)
+				err := h.lobbyService.DeleteLobby(context.Background(), h.Id)
+				if err != nil {
+					return
+				}
+				return
 			case sendMessage:
 				for _, client := range h.Clients {
 					if client.User.Uuid != message.SendBy {
+
+						msgByte, err := json.Marshal(message)
+						if err != nil {
+							h.Logger.Error("ошибка при выполнении marshal")
+							break
+						}
+
 						client.Send <- msgByte
 						//select {
 						//case client.send <- message:

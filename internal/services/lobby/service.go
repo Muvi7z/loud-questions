@@ -92,16 +92,19 @@ func (s *Service) JoinLobby(ctx context.Context, client *websocket.Client, lobby
 		if err != nil {
 			return nil, err
 		}
-		client.User = u
 
-		h.Lobby.Players = append(h.Lobby.Players, client.User)
-		h.Register <- client
+		h.Lobby.Players = append(h.Lobby.Players, u)
 
 		s.hubs[lobbyId] = h
 
 		return &h, nil
 	}
 	return nil, errors.New("not found lobby")
+}
+
+func (s *Service) DeleteLobby(ctx context.Context, idLobby string) error {
+	delete(s.hubs, idLobby)
+	return nil
 }
 
 func (s *Service) GetLobby(ctx context.Context, username string) model.Lobby {
