@@ -22,3 +22,8 @@ type GetLobbyDto struct {
 	Players  []model.User        `json:"users"`
 	Settings model.SettingsLobby `json:"settings"`
 }
+
+type GetSessionDto struct {
+	Id     string `json:"id"`
+	Leader string `json:"leader"`
+}

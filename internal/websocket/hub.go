@@ -15,6 +15,10 @@ type LobbyService interface {
 	DeleteLobby(ctx context.Context, idLobby string) error
 }
 
+type SessionService interface {
+	StartSession(ctx context.Context, lobby model.Lobby) (model.Session, error)
+}
+
 type UserService interface {
 	AddUser(ctx context.Context, username string) string
 	GetUser(ctx context.Context, id string) (model.User, error)
@@ -22,18 +26,20 @@ type UserService interface {
 }
 
 const (
-	sendMessage = "sendMessage"
+	sendMessage  = "sendMessage"
+	startSession = "startSession"
 )
 
 type Hub struct {
-	Id           string
-	Clients      map[string]*Client
-	Broadcast    chan Message
-	Register     chan *Client
-	Unregister   chan *Client
-	Logger       *slog.Logger
-	Lobby        model.Lobby
-	lobbyService LobbyService
+	Id             string
+	Clients        map[string]*Client
+	Broadcast      chan Message
+	Register       chan *Client
+	Unregister     chan *Client
+	Logger         *slog.Logger
+	Lobby          model.Lobby
+	lobbyService   LobbyService
+	sessionService SessionService
 }
 
 const (
@@ -70,7 +76,7 @@ func (h *Hub) Run() {
 			}
 		case message := <-h.Broadcast:
 			fmt.Println(h.Clients)
-
+			// Добавить отправку всем сообщения что присоединился пользователь
 			switch message.Type {
 			case deleteLobby:
 				for _, client := range h.Clients {
@@ -86,6 +92,32 @@ func (h *Hub) Run() {
 					return
 				}
 				return
+			case startSession:
+				for _, client := range h.Clients {
+					if client.User.Uuid != message.SendBy {
+
+						session, err := h.sessionService.StartSession(context.Background(), h.Lobby)
+						if err != nil {
+							return
+						}
+
+						_ = session
+
+						msgByte, err := json.Marshal(message)
+						if err != nil {
+							h.Logger.Error("ошибка при выполнении marshal")
+							break
+						}
+
+						client.Send <- msgByte
+						//select {
+						//case client.send <- message:
+						//default:
+						//	close(client.send)
+						//	delete(h.Clients, client)
+						//}
+					}
+				}
 			case sendMessage:
 				for _, client := range h.Clients {
 					if client.User.Uuid != message.SendBy {
