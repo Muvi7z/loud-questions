@@ -48,16 +48,17 @@ const (
 	deleteLobby = "deleteLobby"
 )
 
-func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby model.Lobby) *Hub {
+func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby model.Lobby, sessionService SessionService) *Hub {
 	return &Hub{
-		Id:           id,
-		Clients:      make(map[string]*Client),
-		Broadcast:    make(chan Message),
-		Register:     make(chan *Client),
-		Unregister:   make(chan *Client),
-		Logger:       logger,
-		Lobby:        lobby,
-		lobbyService: lobbyService,
+		Id:             id,
+		Clients:        make(map[string]*Client),
+		Broadcast:      make(chan Message),
+		Register:       make(chan *Client),
+		Unregister:     make(chan *Client),
+		Logger:         logger,
+		Lobby:          lobby,
+		lobbyService:   lobbyService,
+		sessionService: sessionService,
 	}
 }
 
@@ -78,6 +79,28 @@ func (h *Hub) Run() {
 			fmt.Println(h.Clients)
 			// Добавить отправку всем сообщения что присоединился пользователь
 			switch message.Type {
+			case joinLobby:
+				for _, client := range h.Clients {
+					if userId, ok := message.Data["userId"].(string); ok {
+						if userId != client.User.Uuid {
+							response := Message{
+								Type: joinLobby,
+								Data: map[string]any{
+									"user": client.User,
+								},
+							}
+
+							resByte, err := json.Marshal(&response)
+							if err != nil {
+								h.Logger.Error("ошибка при выполнении marshal")
+								break
+							}
+
+							client.Send <- resByte
+						}
+					}
+
+				}
 			case deleteLobby:
 				for _, client := range h.Clients {
 					close(client.Send)
@@ -101,21 +124,22 @@ func (h *Hub) Run() {
 							return
 						}
 
-						_ = session
+						response := Message{
+							Type:   "startSession",
+							SendBy: message.SendBy,
+							Data: map[string]any{
+								"session": session,
+							},
+						}
 
-						msgByte, err := json.Marshal(message)
+						msgByte, err := json.Marshal(&response)
 						if err != nil {
 							h.Logger.Error("ошибка при выполнении marshal")
 							break
 						}
 
 						client.Send <- msgByte
-						//select {
-						//case client.send <- message:
-						//default:
-						//	close(client.send)
-						//	delete(h.Clients, client)
-						//}
+
 					}
 				}
 			case sendMessage:

@@ -3,16 +3,21 @@ package round
 import (
 	"context"
 	"github.com/google/uuid"
+	"log/slog"
 	"loud-question/internal/model"
 	"time"
 )
 
 type Service struct {
+	logger   *slog.Logger
 	Sessions map[string]model.Session
 }
 
-func New() *Service {
-	return &Service{}
+func New(l *slog.Logger) *Service {
+	return &Service{
+		logger:   l,
+		Sessions: make(map[string]model.Session),
+	}
 }
 
 func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Session, error) {
@@ -27,6 +32,7 @@ func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Se
 		Id:       sessionID,
 		Type:     model.QuestionType,
 		LeaderId: "4",
+		Status:   model.StartStatus,
 		Question: model.Question{
 			Id:         "1",
 			Question:   "Q",

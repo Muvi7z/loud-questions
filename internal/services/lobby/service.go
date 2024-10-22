@@ -7,6 +7,7 @@ import (
 	"github.com/sqids/sqids-go"
 	"log/slog"
 	"loud-question/internal/model"
+	"loud-question/internal/services/round"
 	"loud-question/internal/websocket"
 )
 
@@ -76,7 +77,9 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hu
 		Settings: model.SettingsLobby{},
 	}
 
-	hub := websocket.NewHub(s.logger, s, id, l)
+	sessionService := round.New(s.logger)
+
+	hub := websocket.NewHub(s.logger, s, id, l, sessionService)
 
 	hub.Lobby = l
 

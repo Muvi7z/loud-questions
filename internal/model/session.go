@@ -8,6 +8,11 @@ const (
 	SuperGameType             = "SuperGame"
 )
 
+// status
+const (
+	StartStatus = "startStatus"
+)
+
 type Session struct {
 	Id       string      `json:"id"`
 	Type     SessionType `json:"type"`
