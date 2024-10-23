@@ -77,7 +77,7 @@ func (h *Hub) Run() {
 			}
 		case message := <-h.Broadcast:
 			fmt.Println(h.Clients)
-			// Добавить отправку всем сообщения что присоединился пользователь
+
 			switch message.Type {
 			case joinLobby:
 				for _, client := range h.Clients {

@@ -186,7 +186,7 @@ func (c *Client) ReadPump() {
 				}
 
 				res, _ := json.Marshal(&lobbyDto)
-
+				c.Hub.Broadcast <- msgDto
 				c.Send <- res
 			}
 		default:
