@@ -51,8 +51,9 @@ func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, userSe
 
 func (c *Client) ReadPump() {
 	defer func() {
+		fmt.Println("close connection", c.User.Username)
 		if c.Hub != nil {
-			//c.Hub.Unregister <- c
+			c.Hub.Unregister <- c
 		}
 		err := c.conn.Close()
 		if err != nil {
@@ -235,7 +236,7 @@ func (c *Client) WritePump() {
 				return
 			}
 
-			fmt.Println(len(c.Send))
+			//fmt.Println(len(c.Send))
 
 			//dataBytes, err := json.Marshal(msg)
 			//if err != nil {

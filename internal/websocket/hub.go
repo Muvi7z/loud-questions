@@ -45,6 +45,7 @@ type Hub struct {
 const (
 	createLobby = "createLobby"
 	joinLobby   = "joinLobby"
+	leftLobby   = "leftLobby"
 	deleteLobby = "deleteLobby"
 )
 
@@ -71,9 +72,28 @@ func (h *Hub) Run() {
 			h.Clients[clientId] = client
 		case client := <-h.Unregister:
 			clientId := client.User.Uuid
+			for _, client := range h.Clients {
+				if clientId != client.User.Uuid {
+					response := Message{
+						Type: leftLobby,
+						Data: map[string]any{
+							"user": h.Clients[clientId].User,
+						},
+					}
+
+					resByte, err := json.Marshal(&response)
+					if err != nil {
+						h.Logger.Error("ошибка при выполнении marshal")
+						break
+					}
+
+					client.Send <- resByte
+				}
+			}
+			fmt.Println(h.Clients)
 			if _, ok := h.Clients[clientId]; ok {
 				delete(h.Clients, clientId)
-				close(client.Send)
+				//close(client.Send)
 			}
 		case message := <-h.Broadcast:
 			fmt.Println(h.Clients)
@@ -86,7 +106,7 @@ func (h *Hub) Run() {
 							response := Message{
 								Type: joinLobby,
 								Data: map[string]any{
-									"user": client.User,
+									"user": h.Clients[userId].User,
 								},
 							}
 
@@ -104,7 +124,7 @@ func (h *Hub) Run() {
 			case deleteLobby:
 				for _, client := range h.Clients {
 					close(client.Send)
-
+					client.Hub = nil
 					delete(h.Clients, client.User.Uuid)
 				}
 				close(h.Register)
