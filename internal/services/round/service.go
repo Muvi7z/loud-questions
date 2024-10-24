@@ -15,18 +15,17 @@ type Service struct {
 	QuestionService question.QuestionsService
 }
 
-func New(l *slog.Logger) *Service {
+func New(l *slog.Logger, questionService question.QuestionsService) *Service {
 	return &Service{
-		logger:   l,
-		Sessions: make(map[string]model.Session),
+		logger:          l,
+		Sessions:        make(map[string]model.Session),
+		QuestionService: questionService,
 	}
 }
 
 func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Session, error) {
 
 	//Рандомим ведущего
-
-	//Рандомим вопрос
 
 	q, err := s.QuestionService.GetRandomQuestion()
 	if err != nil {

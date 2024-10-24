@@ -8,6 +8,18 @@ import (
 	"loud-question/internal/model"
 )
 
+const (
+	sendMessage  = "sendMessage"
+	startSession = "startSession"
+)
+
+const (
+	createLobby = "createLobby"
+	joinLobby   = "joinLobby"
+	leftLobby   = "leftLobby"
+	deleteLobby = "deleteLobby"
+)
+
 type LobbyService interface {
 	CreateLobby(ctx context.Context, userId string) (*Hub, error)
 	GetLobbies(ctx context.Context) map[string]GetLobbyDto
@@ -25,11 +37,6 @@ type UserService interface {
 	GetUsers(ctx context.Context) (map[string]model.User, error)
 }
 
-const (
-	sendMessage  = "sendMessage"
-	startSession = "startSession"
-)
-
 type Hub struct {
 	Id             string
 	Clients        map[string]*Client
@@ -41,13 +48,6 @@ type Hub struct {
 	lobbyService   LobbyService
 	sessionService SessionService
 }
-
-const (
-	createLobby = "createLobby"
-	joinLobby   = "joinLobby"
-	leftLobby   = "leftLobby"
-	deleteLobby = "deleteLobby"
-)
 
 func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby model.Lobby, sessionService SessionService) *Hub {
 	return &Hub{
