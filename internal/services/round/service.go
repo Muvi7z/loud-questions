@@ -5,12 +5,14 @@ import (
 	"github.com/google/uuid"
 	"log/slog"
 	"loud-question/internal/model"
-	"time"
+	"loud-question/internal/services/question"
 )
 
 type Service struct {
-	logger   *slog.Logger
-	Sessions map[string]model.Session
+	logger          *slog.Logger
+	Sessions        map[string]model.Session
+	playedQuestions []string
+	QuestionService question.QuestionsService
 }
 
 func New(l *slog.Logger) *Service {
@@ -26,6 +28,11 @@ func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Se
 
 	//Рандомим вопрос
 
+	q, err := s.QuestionService.GetRandomQuestion()
+	if err != nil {
+		s.logger.Error(err.Error())
+	}
+
 	sessionID := uuid.New().String()
 
 	session := model.Session{
@@ -33,12 +40,7 @@ func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Se
 		Type:     model.QuestionType,
 		LeaderId: "4",
 		Status:   model.StartStatus,
-		Question: model.Question{
-			Id:         "1",
-			Question:   "Q",
-			Answer:     "E",
-			TimeGiving: time.Minute,
-		},
+		Question: q,
 	}
 
 	s.Sessions[sessionID] = session
