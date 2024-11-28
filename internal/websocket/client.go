@@ -33,9 +33,9 @@ type Client struct {
 }
 
 type Message struct {
-	Type   string         `json:"type"`
-	SendBy string         `json:"sendBy"`
-	Data   map[string]any `json:"data"`
+	Type   string          `json:"type"`
+	SendBy string          `json:"sendBy"`
+	Data   json.RawMessage `json:"data"`
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, userService UserService, logger *slog.Logger) *Client {
@@ -94,45 +94,11 @@ func (c *Client) ReadPump() {
 			c.logger.Info("attending to create lobby")
 			ctx := context.Background()
 			fmt.Println(msgDto.Data)
-			if userId, ok := msgDto.Data["userId"].(string); ok {
 
-				hub, err := c.lobbyService.CreateLobby(ctx, userId)
-				if err != nil {
-					c.logger.Error(err.Error())
-					msg, _ := json.Marshal(ErrorMessage{
-						Message: err.Error(),
-						Code:    "404",
-					})
-					c.Send <- msg
-					break
-				}
+			var data CreateLobbyDto
 
-				c.User, err = c.userService.GetUser(ctx, userId)
-				if err != nil {
-					c.logger.Error(err.Error())
-					msg, _ := json.Marshal(ErrorMessage{
-						Message: err.Error(),
-						Code:    "404",
-					})
-					c.Send <- msg
-					break
-				}
-
-				go hub.Run()
-				c.Hub = hub
-				c.Hub.Register <- c
-
-				lobbyDto := GetLobbyDto{
-					Id:       hub.Id,
-					Owner:    hub.Lobby.Owner,
-					Players:  hub.Lobby.Players,
-					Settings: hub.Lobby.Settings,
-				}
-
-				res, _ := json.Marshal(&lobbyDto)
-
-				c.Send <- res
-			} else {
+			err := json.Unmarshal(msgDto.Data, &data)
+			if err != nil {
 				c.logger.Error("Ошибка преобразования")
 				msg, _ := json.Marshal(ErrorMessage{
 					Message: "invalid credentials",
@@ -141,55 +107,92 @@ func (c *Client) ReadPump() {
 				c.Send <- msg
 			}
 
-		case joinLobby:
-			if lobbyId, ok := msgDto.Data["lobbyId"].(string); ok {
-				userId, ok := msgDto.Data["userId"].(string)
-				if !ok {
-					msg, _ := json.Marshal(ErrorMessage{
-						Message: "invalid credentials",
-						Code:    "404",
-					})
-					c.Send <- msg
-					break
-				}
-				c.logger.Info("attending to join lobby", lobbyId)
-
-				ctx := context.Background()
-				hub, err := c.lobbyService.JoinLobby(ctx, c, lobbyId, userId)
-				if err != nil {
-					c.logger.Error(err.Error())
-					msg, _ := json.Marshal(ErrorMessage{
-						Message: err.Error(),
-						Code:    "404",
-					})
-					c.Send <- msg
-					break
-				}
-
-				c.User, err = c.userService.GetUser(ctx, userId)
-				if err != nil {
-					c.logger.Error(err.Error())
-					msg, _ := json.Marshal(ErrorMessage{
-						Message: err.Error(),
-						Code:    "404",
-					})
-					c.Send <- msg
-					break
-				}
-				c.Hub = hub
-				c.Hub.Register <- c
-
-				lobbyDto := GetLobbyDto{
-					Id:       hub.Id,
-					Owner:    hub.Lobby.Owner,
-					Players:  hub.Lobby.Players,
-					Settings: hub.Lobby.Settings,
-				}
-
-				res, _ := json.Marshal(&lobbyDto)
-				c.Hub.Broadcast <- msgDto
-				c.Send <- res
+			hub, err := c.lobbyService.CreateLobby(ctx, data.UserId)
+			if err != nil {
+				c.logger.Error(err.Error())
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: err.Error(),
+					Code:    "404",
+				})
+				c.Send <- msg
+				break
 			}
+
+			c.User, err = c.userService.GetUser(ctx, data.UserId)
+			if err != nil {
+				c.logger.Error(err.Error())
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: err.Error(),
+					Code:    "404",
+				})
+				c.Send <- msg
+				break
+			}
+
+			go hub.Run()
+			c.Hub = hub
+			c.Hub.Register <- c
+
+			lobbyDto := GetLobbyDto{
+				Id:       hub.Id,
+				Owner:    hub.Lobby.Owner,
+				Players:  hub.Lobby.Players,
+				Settings: hub.Lobby.Settings,
+			}
+
+			res, _ := json.Marshal(&lobbyDto)
+
+			c.Send <- res
+
+		case joinLobby:
+			var data JoinLobbyDto
+			err := json.Unmarshal(msgDto.Data, &data)
+			if err != nil {
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: "invalid credentials",
+					Code:    "404",
+				})
+				c.Send <- msg
+				break
+			}
+
+			c.logger.Info("attending to join lobby", data.LobbyId)
+
+			ctx := context.Background()
+			hub, err := c.lobbyService.JoinLobby(ctx, c, data.LobbyId, data.UserId)
+			if err != nil {
+				c.logger.Error(err.Error())
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: err.Error(),
+					Code:    "404",
+				})
+				c.Send <- msg
+				break
+			}
+
+			c.User, err = c.userService.GetUser(ctx, data.UserId)
+			if err != nil {
+				c.logger.Error(err.Error())
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: err.Error(),
+					Code:    "404",
+				})
+				c.Send <- msg
+				break
+			}
+			c.Hub = hub
+			c.Hub.Register <- c
+
+			lobbyDto := GetLobbyDto{
+				Id:       hub.Id,
+				Owner:    hub.Lobby.Owner,
+				Players:  hub.Lobby.Players,
+				Settings: hub.Lobby.Settings,
+			}
+
+			res, _ := json.Marshal(&lobbyDto)
+			c.Hub.Broadcast <- msgDto
+			c.Send <- res
 		default:
 			if c.Hub != nil {
 				msgDto.SendBy = c.User.Uuid

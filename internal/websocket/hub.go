@@ -74,11 +74,13 @@ func (h *Hub) Run() {
 			clientId := client.User.Uuid
 			for _, client := range h.Clients {
 				if clientId != client.User.Uuid {
+					resData, _ := json.Marshal(GetUserDto{
+						User: h.Clients[clientId].User,
+					})
+
 					response := Message{
 						Type: leftLobby,
-						Data: map[string]any{
-							"user": h.Clients[clientId].User,
-						},
+						Data: resData,
 					}
 
 					resByte, err := json.Marshal(&response)
@@ -101,23 +103,30 @@ func (h *Hub) Run() {
 			switch message.Type {
 			case joinLobby:
 				for _, client := range h.Clients {
-					if userId, ok := message.Data["userId"].(string); ok {
-						if userId != client.User.Uuid {
-							response := Message{
-								Type: joinLobby,
-								Data: map[string]any{
-									"user": h.Clients[userId].User,
-								},
-							}
+					var data JoinLobbyDto
+					err := json.Unmarshal(message.Data, &data)
+					if err != nil {
+						h.Logger.Error("ошибка при выполнении Unmarshal")
+					}
 
-							resByte, err := json.Marshal(&response)
-							if err != nil {
-								h.Logger.Error("ошибка при выполнении marshal")
-								break
-							}
+					if data.UserId != client.User.Uuid {
 
-							client.Send <- resByte
+						resData, _ := json.Marshal(GetUserDto{
+							User: h.Clients[data.UserId].User,
+						})
+
+						response := Message{
+							Type: joinLobby,
+							Data: resData,
 						}
+
+						resByte, err := json.Marshal(&response)
+						if err != nil {
+							h.Logger.Error("ошибка при выполнении marshal")
+							break
+						}
+
+						client.Send <- resByte
 					}
 
 				}
@@ -137,30 +146,32 @@ func (h *Hub) Run() {
 				return
 			case startSession:
 				for _, client := range h.Clients {
-					if client.User.Uuid != message.SendBy {
+					//if client.User.Uuid != message.SendBy {
 
-						session, err := h.sessionService.StartSession(context.Background(), h.Lobby)
-						if err != nil {
-							return
-						}
-
-						response := Message{
-							Type:   "startSession",
-							SendBy: message.SendBy,
-							Data: map[string]any{
-								"session": session,
-							},
-						}
-
-						msgByte, err := json.Marshal(&response)
-						if err != nil {
-							h.Logger.Error("ошибка при выполнении marshal")
-							break
-						}
-
-						client.Send <- msgByte
-
+					session, err := h.sessionService.StartSession(context.Background(), h.Lobby)
+					if err != nil {
+						return
 					}
+
+					resData, _ := json.Marshal(StartSessionDto{
+						Session: session,
+					})
+
+					response := Message{
+						Type:   "startSession",
+						SendBy: message.SendBy,
+						Data:   resData,
+					}
+
+					msgByte, err := json.Marshal(&response)
+					if err != nil {
+						h.Logger.Error("ошибка при выполнении marshal")
+						break
+					}
+
+					client.Send <- msgByte
+
+					//}
 				}
 			case sendMessage:
 				for _, client := range h.Clients {

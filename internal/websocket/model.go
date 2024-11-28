@@ -11,6 +11,14 @@ type CreateLobbyDto struct {
 	UserId string `json:"userId"`
 }
 
+type GetUserDto struct {
+	User model.User `json:"user"`
+}
+
+type StartSessionDto struct {
+	Session model.Session `json:"session"`
+}
+
 type JoinLobbyDto struct {
 	UserId  string `json:"userId"`
 	LobbyId string `json:"lobbyId"`
