@@ -23,7 +23,21 @@ func NewHandler(logger *slog.Logger, lobbyService ws.LobbyService, userService w
 	}
 }
 
+func LiberalCORS(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE")
+
+	if c.Request.Method == "OPTIONS" {
+		if len(c.Request.Header["Access-Control-Request-Headers"]) > 0 {
+			c.Header("Access-Control-Allow-Headers",
+				c.Request.Header["Access-Control-Request-Headers"][0])
+		}
+		c.AbortWithStatus(http.StatusOK)
+	}
+}
+
 func (h *Handler) Register(router *gin.Engine) *gin.Engine {
+	router.Use(LiberalCORS)
 	router.GET("/ws", h.WsConnect)
 	router.POST("/signUp", h.SignUp)
 	router.GET("/users", h.GetUsers)
