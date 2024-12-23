@@ -11,6 +11,7 @@ import (
 const (
 	sendMessage  = "sendMessage"
 	startSession = "startSession"
+	endSession   = "endSession"
 )
 
 const (
@@ -146,7 +147,6 @@ func (h *Hub) Run() {
 				return
 			case startSession:
 				for _, client := range h.Clients {
-					//if client.User.Uuid != message.SendBy {
 
 					session, err := h.sessionService.StartSession(context.Background(), h.Lobby)
 					if err != nil {
@@ -171,7 +171,33 @@ func (h *Hub) Run() {
 
 					client.Send <- msgByte
 
-					//}
+				}
+			case endSession:
+				for _, client := range h.Clients {
+
+					session, err := h.sessionService.StartSession(context.Background(), h.Lobby)
+					if err != nil {
+						return
+					}
+
+					resData, _ := json.Marshal(StartSessionDto{
+						Session: session,
+					})
+
+					response := Message{
+						Type:   "startSession",
+						SendBy: message.SendBy,
+						Data:   resData,
+					}
+
+					msgByte, err := json.Marshal(&response)
+					if err != nil {
+						h.Logger.Error("ошибка при выполнении marshal")
+						break
+					}
+
+					client.Send <- msgByte
+
 				}
 			case sendMessage:
 				for _, client := range h.Clients {
