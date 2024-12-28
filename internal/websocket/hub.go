@@ -17,7 +17,7 @@ const (
 const (
 	createLobby = "createLobby"
 	joinLobby   = "joinLobby"
-	leftLobby   = "leftLobby"
+	leftLobby   = "(leftLobby)"
 	deleteLobby = "deleteLobby"
 )
 

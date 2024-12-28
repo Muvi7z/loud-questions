@@ -37,8 +37,8 @@ func LiberalCORS(c *gin.Context) {
 }
 
 func (h *Handler) Register(router *gin.Engine) *gin.Engine {
-	router.Use(LiberalCORS)
 	router.GET("/ws", h.WsConnect)
+	router.Use(LiberalCORS)
 	router.POST("/signUp", h.SignUp)
 	router.GET("/users", h.GetUsers)
 	router.GET("/lobbies", h.GetLobbies)
@@ -76,6 +76,8 @@ func (h *Handler) GetLobbies(c *gin.Context) {
 
 func (h *Handler) WsConnect(c *gin.Context) {
 	h.logger.Info("attending to connect ws")
+
+	ws.Upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := ws.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		h.logger.Error(err.Error())
