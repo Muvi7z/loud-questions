@@ -17,6 +17,8 @@ const (
 	maxMessageSize = 2048
 )
 
+//Нужно сделать реконект, при обновлении страницы, возвращать лобби по id пользователя, закрывать предыдущий коннект
+
 var Upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -140,9 +142,16 @@ func (c *Client) ReadPump() {
 				Settings: hub.Lobby.Settings,
 			}
 
-			res, _ := json.Marshal(&lobbyDto)
+			lobbyByte, _ := json.Marshal(&lobbyDto)
+			msgCreate := Message{
+				Type:   msgDto.Type,
+				SendBy: c.User.Uuid,
+				Data:   lobbyByte,
+			}
 
-			c.Send <- res
+			msgCreateByte, _ := json.Marshal(&msgCreate)
+
+			c.Send <- msgCreateByte
 
 		case joinLobby:
 			var data JoinLobbyDto

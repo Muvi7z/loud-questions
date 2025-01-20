@@ -199,6 +199,23 @@ func (h *Hub) Run() {
 					client.Send <- msgByte
 
 				}
+			case createLobby:
+				for _, client := range h.Clients {
+					if client.User.Uuid != message.SendBy {
+						response := Message{
+							Type: createLobby,
+							Data: message.Data,
+						}
+
+						resByte, err := json.Marshal(&response)
+						if err != nil {
+							h.Logger.Error("ошибка при выполнении marshal")
+							break
+						}
+
+						client.Send <- resByte
+					}
+				}
 			case sendMessage:
 				for _, client := range h.Clients {
 					if client.User.Uuid != message.SendBy {
