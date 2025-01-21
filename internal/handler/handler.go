@@ -41,6 +41,7 @@ func (h *Handler) Register(router *gin.Engine) *gin.Engine {
 	router.Use(LiberalCORS)
 	router.POST("/signUp", h.SignUp)
 	router.GET("/users", h.GetUsers)
+	router.GET("/user/:userId", h.GetUser)
 	router.GET("/lobbies", h.GetLobbies)
 	return router
 }
@@ -67,6 +68,23 @@ func (h *Handler) GetUsers(c *gin.Context) {
 
 	c.JSON(200, users)
 }
+
+func (h *Handler) GetUser(c *gin.Context) {
+	if userId := c.Param("userId"); userId != "" {
+		users, _ := h.userService.GetUsers(context.Background())
+		user, ok := users[userId]
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(200, user)
+	} else {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
+		return
+	}
+
+}
+
 func (h *Handler) GetLobbies(c *gin.Context) {
 	lobbies := h.lobbyService.GetLobbies(context.Background())
 	fmt.Println(lobbies)

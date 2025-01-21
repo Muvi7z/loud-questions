@@ -199,9 +199,18 @@ func (c *Client) ReadPump() {
 				Settings: hub.Lobby.Settings,
 			}
 
-			res, _ := json.Marshal(&lobbyDto)
+			lobbyByte, _ := json.Marshal(&lobbyDto)
+
+			msgRes := Message{
+				Type:   joinLobby,
+				SendBy: c.User.Uuid,
+				Data:   lobbyByte,
+			}
+
+			msgByte, _ := json.Marshal(&msgRes)
+
 			c.Hub.Broadcast <- msgDto
-			c.Send <- res
+			c.Send <- msgByte
 		default:
 			if c.Hub != nil {
 				msgDto.SendBy = c.User.Uuid

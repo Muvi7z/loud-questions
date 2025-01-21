@@ -17,7 +17,7 @@ const (
 const (
 	createLobby = "createLobby"
 	joinLobby   = "joinLobby"
-	leftLobby   = "(leftLobby)"
+	leftLobby   = "leftLobby"
 	deleteLobby = "deleteLobby"
 )
 
@@ -117,8 +117,9 @@ func (h *Hub) Run() {
 						})
 
 						response := Message{
-							Type: joinLobby,
-							Data: resData,
+							Type:   joinLobby,
+							SendBy: client.User.Uuid,
+							Data:   resData,
 						}
 
 						resByte, err := json.Marshal(&response)
