@@ -30,7 +30,6 @@ type Client struct {
 	Send         chan []byte
 	User         model.User
 	lobbyService LobbyService
-	userService  UserService
 	logger       *slog.Logger
 }
 
@@ -40,17 +39,17 @@ type Message struct {
 	Data   json.RawMessage `json:"data"`
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, userService UserService, logger *slog.Logger) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, logger *slog.Logger) *Client {
 	return &Client{
 		Hub:          hub,
 		conn:         conn,
 		lobbyService: lobbyService,
-		userService:  userService,
 		logger:       logger,
 		Send:         make(chan []byte, 256),
 	}
 }
 
+// ReadPump Получиение сообщений от клиента и отправка в хаб
 func (c *Client) ReadPump() {
 	defer func() {
 		fmt.Println("close connection", c.User.Username)
@@ -120,17 +119,6 @@ func (c *Client) ReadPump() {
 				break
 			}
 
-			c.User, err = c.userService.GetUser(ctx, data.UserId)
-			if err != nil {
-				c.logger.Error(err.Error())
-				msg, _ := json.Marshal(ErrorMessage{
-					Message: err.Error(),
-					Code:    "404",
-				})
-				c.Send <- msg
-				break
-			}
-
 			go hub.Run()
 			c.Hub = hub
 			c.Hub.Register <- c
@@ -145,7 +133,7 @@ func (c *Client) ReadPump() {
 			lobbyByte, _ := json.Marshal(&lobbyDto)
 			msgCreate := Message{
 				Type:   msgDto.Type,
-				SendBy: c.User.Uuid,
+				SendBy: data.UserId,
 				Data:   lobbyByte,
 			}
 
@@ -168,7 +156,7 @@ func (c *Client) ReadPump() {
 			c.logger.Info("attending to join lobby", data.LobbyId)
 
 			ctx := context.Background()
-			hub, err := c.lobbyService.JoinLobby(ctx, c, data.LobbyId, data.UserId)
+			hub, err := c.lobbyService.JoinLobby(ctx, data.LobbyId, data.UserId)
 			if err != nil {
 				c.logger.Error(err.Error())
 				msg, _ := json.Marshal(ErrorMessage{
@@ -179,16 +167,6 @@ func (c *Client) ReadPump() {
 				break
 			}
 
-			c.User, err = c.userService.GetUser(ctx, data.UserId)
-			if err != nil {
-				c.logger.Error(err.Error())
-				msg, _ := json.Marshal(ErrorMessage{
-					Message: err.Error(),
-					Code:    "404",
-				})
-				c.Send <- msg
-				break
-			}
 			c.Hub = hub
 			c.Hub.Register <- c
 
@@ -203,14 +181,11 @@ func (c *Client) ReadPump() {
 
 			msgRes := Message{
 				Type:   joinLobby,
-				SendBy: c.User.Uuid,
+				SendBy: data.UserId,
 				Data:   lobbyByte,
 			}
 
-			msgByte, _ := json.Marshal(&msgRes)
-
-			c.Hub.Broadcast <- msgDto
-			c.Send <- msgByte
+			c.Hub.Broadcast <- msgRes
 		default:
 			if c.Hub != nil {
 				msgDto.SendBy = c.User.Uuid

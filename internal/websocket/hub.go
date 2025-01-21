@@ -15,16 +15,17 @@ const (
 )
 
 const (
-	createLobby = "createLobby"
-	joinLobby   = "joinLobby"
-	leftLobby   = "leftLobby"
-	deleteLobby = "deleteLobby"
+	createLobby    = "createLobby"
+	joinLobby      = "joinLobby"
+	reconnectLobby = "reconnectLobby"
+	leftLobby      = "leftLobby"
+	deleteLobby    = "deleteLobby"
 )
 
 type LobbyService interface {
 	CreateLobby(ctx context.Context, userId string) (*Hub, error)
 	GetLobbies(ctx context.Context) map[string]GetLobbyDto
-	JoinLobby(ctx context.Context, client *Client, lobbyId string, userId string) (*Hub, error)
+	JoinLobby(ctx context.Context, lobbyId string, userId string) (*Hub, error)
 	DeleteLobby(ctx context.Context, idLobby string) error
 }
 
@@ -64,6 +65,7 @@ func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby mod
 	}
 }
 
+// Run Запуск хаба, получение сообщение и отправление ответа другим клиентам
 func (h *Hub) Run() {
 	for {
 		fmt.Println(fmt.Sprintf("run hub %s", h.Id))
@@ -83,6 +85,8 @@ func (h *Hub) Run() {
 						Type: leftLobby,
 						Data: resData,
 					}
+
+					// удалить из лобби
 
 					resByte, err := json.Marshal(&response)
 					if err != nil {
@@ -104,32 +108,12 @@ func (h *Hub) Run() {
 			switch message.Type {
 			case joinLobby:
 				for _, client := range h.Clients {
-					var data JoinLobbyDto
-					err := json.Unmarshal(message.Data, &data)
+					resByte, err := json.Marshal(&message)
 					if err != nil {
-						h.Logger.Error("ошибка при выполнении Unmarshal")
+						h.Logger.Error("ошибка при выполнении marshal")
+						break
 					}
-
-					if data.UserId != client.User.Uuid {
-
-						resData, _ := json.Marshal(GetUserDto{
-							User: h.Clients[data.UserId].User,
-						})
-
-						response := Message{
-							Type:   joinLobby,
-							SendBy: client.User.Uuid,
-							Data:   resData,
-						}
-
-						resByte, err := json.Marshal(&response)
-						if err != nil {
-							h.Logger.Error("ошибка при выполнении marshal")
-							break
-						}
-
-						client.Send <- resByte
-					}
+					client.Send <- resByte
 
 				}
 			case deleteLobby:

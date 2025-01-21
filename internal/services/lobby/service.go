@@ -51,6 +51,8 @@ func (s *Service) GetUsers(ctx context.Context) (map[string]model.User, error) {
 }
 
 func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hub, error) {
+	//проверка того что юзер существует
+
 	allId := make([]string, len(s.hubs)*2)
 
 	i := 0
@@ -91,7 +93,7 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hu
 	return hub, nil
 }
 
-func (s *Service) JoinLobby(ctx context.Context, client *websocket.Client, lobbyId string, userId string) (*websocket.Hub, error) {
+func (s *Service) JoinLobby(ctx context.Context, lobbyId string, userId string) (*websocket.Hub, error) {
 	if h, ok := s.hubs[lobbyId]; ok {
 
 		u, err := s.GetUser(ctx, userId)
