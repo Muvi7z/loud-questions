@@ -3,10 +3,13 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log/slog"
 	"loud-question/internal/model"
+	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -15,6 +18,11 @@ const (
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
 	maxMessageSize = 2048
+)
+
+var (
+	ErrUserNotFound     = errors.New("user not found")
+	ErrPlayerExistLobby = errors.New("player already exist")
 )
 
 //Нужно сделать реконект, при обновлении страницы, возвращать лобби по id пользователя, закрывать предыдущий коннект
@@ -30,6 +38,7 @@ type Client struct {
 	Send         chan []byte
 	User         model.User
 	lobbyService LobbyService
+	userGetter   UserGetter
 	logger       *slog.Logger
 }
 
@@ -39,11 +48,16 @@ type Message struct {
 	Data   json.RawMessage `json:"data"`
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, logger *slog.Logger) *Client {
+type UserGetter interface {
+	GetUser(ctx context.Context, id string) (model.User, error)
+}
+
+func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, userGetter UserGetter, logger *slog.Logger) *Client {
 	return &Client{
 		Hub:          hub,
 		conn:         conn,
 		lobbyService: lobbyService,
+		userGetter:   userGetter,
 		logger:       logger,
 		Send:         make(chan []byte, 256),
 	}
@@ -108,6 +122,17 @@ func (c *Client) ReadPump() {
 				c.Send <- msg
 			}
 
+			u, err := c.userGetter.GetUser(ctx, data.UserId)
+			if err != nil {
+				c.logger.Error(err.Error())
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: err.Error(),
+					Code:    "404",
+				})
+				c.Send <- msg
+				break
+			}
+
 			hub, err := c.lobbyService.CreateLobby(ctx, data.UserId)
 			if err != nil {
 				c.logger.Error(err.Error())
@@ -121,6 +146,8 @@ func (c *Client) ReadPump() {
 
 			go hub.Run()
 			c.Hub = hub
+			c.User = u
+
 			c.Hub.Register <- c
 
 			lobbyDto := GetLobbyDto{
@@ -147,7 +174,7 @@ func (c *Client) ReadPump() {
 			if err != nil {
 				msg, _ := json.Marshal(ErrorMessage{
 					Message: "invalid credentials",
-					Code:    "404",
+					Code:    "400",
 				})
 				c.Send <- msg
 				break
@@ -156,7 +183,8 @@ func (c *Client) ReadPump() {
 			c.logger.Info("attending to join lobby", data.LobbyId)
 
 			ctx := context.Background()
-			hub, err := c.lobbyService.JoinLobby(ctx, data.LobbyId, data.UserId)
+
+			u, err := c.userGetter.GetUser(ctx, data.UserId)
 			if err != nil {
 				c.logger.Error(err.Error())
 				msg, _ := json.Marshal(ErrorMessage{
@@ -167,7 +195,33 @@ func (c *Client) ReadPump() {
 				break
 			}
 
+			hub, err := c.lobbyService.JoinLobby(ctx, data.LobbyId, data.UserId)
+			if err != nil {
+				c.logger.Error(err.Error())
+				var msg []byte
+				if errors.Is(err, ErrPlayerExistLobby) {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusBadRequest),
+					})
+				} else if errors.Is(err, ErrUserNotFound) {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusNotFound),
+					})
+				} else {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusBadRequest),
+					})
+				}
+
+				c.Send <- msg
+				break
+			}
+
 			c.Hub = hub
+			c.User = u
 			c.Hub.Register <- c
 
 			lobbyDto := GetLobbyDto{
@@ -181,6 +235,74 @@ func (c *Client) ReadPump() {
 
 			msgRes := Message{
 				Type:   joinLobby,
+				SendBy: data.UserId,
+				Data:   lobbyByte,
+			}
+
+			c.Hub.Broadcast <- msgRes
+		case leftLobby:
+			var data JoinLobbyDto
+			err := json.Unmarshal(msgDto.Data, &data)
+			if err != nil {
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: "invalid credentials",
+					Code:    "400",
+				})
+				c.Send <- msg
+				break
+			}
+
+			c.logger.Info("attending to join lobby", data.LobbyId)
+
+			ctx := context.Background()
+
+			//u, err := c.userGetter.GetUser(ctx, data.UserId)
+			//if err != nil {
+			//	c.logger.Error(err.Error())
+			//	msg, _ := json.Marshal(ErrorMessage{
+			//		Message: err.Error(),
+			//		Code:    "404",
+			//	})
+			//	c.Send <- msg
+			//	break
+			//}
+
+			hub, err := c.lobbyService.JoinLobby(ctx, data.LobbyId, data.UserId)
+			if err != nil {
+				c.logger.Error(err.Error())
+				var msg []byte
+				if errors.Is(err, ErrPlayerExistLobby) {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusBadRequest),
+					})
+				} else if errors.Is(err, ErrUserNotFound) {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusNotFound),
+					})
+				} else {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusBadRequest),
+					})
+				}
+
+				c.Send <- msg
+				break
+			}
+
+			lobbyDto := GetLobbyDto{
+				Id:       hub.Id,
+				Owner:    hub.Lobby.Owner,
+				Players:  hub.Lobby.Players,
+				Settings: hub.Lobby.Settings,
+			}
+
+			lobbyByte, _ := json.Marshal(&lobbyDto)
+
+			msgRes := Message{
+				Type:   leftLobby,
 				SendBy: data.UserId,
 				Data:   lobbyByte,
 			}

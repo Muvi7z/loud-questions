@@ -16,14 +16,14 @@ import (
 type Service struct {
 	logger *slog.Logger
 	users  map[string]model.User
-	hubs   map[string]websocket.Hub
+	hubs   map[string]*websocket.Hub
 }
 
 func New(log *slog.Logger, users map[string]model.User) *Service {
 	return &Service{
 		logger: log,
 		users:  users,
-		hubs:   make(map[string]websocket.Hub),
+		hubs:   make(map[string]*websocket.Hub),
 	}
 }
 
@@ -41,7 +41,7 @@ func (s *Service) AddUser(ctx context.Context, username string) string {
 func (s *Service) GetUser(ctx context.Context, id string) (model.User, error) {
 	u, ok := s.users[id]
 	if !ok {
-		return model.User{}, errors.New("not found user")
+		return model.User{}, errors.New("user not found")
 	}
 	return u, nil
 }
@@ -88,7 +88,7 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hu
 
 	hub.Lobby = l
 
-	s.hubs[id] = *hub
+	s.hubs[id] = hub
 
 	return hub, nil
 }
@@ -101,11 +101,20 @@ func (s *Service) JoinLobby(ctx context.Context, lobbyId string, userId string) 
 			return nil, err
 		}
 
+		existPlayer := false
+		for _, player := range h.Lobby.Players {
+			if player.Uuid == userId {
+				existPlayer = true
+			}
+		}
+		if existPlayer {
+			return nil, errors.New("player already exist")
+		}
 		h.Lobby.Players = append(h.Lobby.Players, u)
 
 		s.hubs[lobbyId] = h
 
-		return &h, nil
+		return h, nil
 	}
 	return nil, errors.New("not found lobby")
 }
@@ -113,6 +122,25 @@ func (s *Service) JoinLobby(ctx context.Context, lobbyId string, userId string) 
 func (s *Service) DeleteLobby(ctx context.Context, idLobby string) error {
 	delete(s.hubs, idLobby)
 	return nil
+}
+
+func (s *Service) LeftLobby(ctx context.Context, lobbyId string, userId string) (*websocket.Hub, error) {
+	if h, ok := s.hubs[lobbyId]; ok {
+
+		var deleteId int
+		for i, item := range h.Lobby.Players {
+			if item.Uuid == userId {
+				deleteId = i
+			}
+		}
+
+		h.Lobby.Players = append(h.Lobby.Players[:deleteId], h.Lobby.Players[deleteId+1:]...)
+
+		//s.hubs[lobbyId] = h
+
+		return h, nil
+	}
+	return nil, errors.New("not found lobby")
 }
 
 func (s *Service) GetLobby(ctx context.Context, username string) model.Lobby {

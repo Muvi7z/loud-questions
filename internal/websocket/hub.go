@@ -27,6 +27,7 @@ type LobbyService interface {
 	GetLobbies(ctx context.Context) map[string]GetLobbyDto
 	JoinLobby(ctx context.Context, lobbyId string, userId string) (*Hub, error)
 	DeleteLobby(ctx context.Context, idLobby string) error
+	LeftLobby(ctx context.Context, lobbyId string, userId string) (*Hub, error)
 }
 
 type SessionService interface {
@@ -87,7 +88,6 @@ func (h *Hub) Run() {
 					}
 
 					// удалить из лобби
-
 					resByte, err := json.Marshal(&response)
 					if err != nil {
 						h.Logger.Error("ошибка при выполнении marshal")
@@ -99,6 +99,12 @@ func (h *Hub) Run() {
 			}
 			fmt.Println(h.Clients)
 			if _, ok := h.Clients[clientId]; ok {
+				_, err := h.lobbyService.LeftLobby(context.Background(), h.Id, client.User.Uuid)
+				if err != nil {
+					h.Logger.Error("error", err)
+					break
+				}
+
 				delete(h.Clients, clientId)
 				//close(client.Send)
 			}

@@ -109,7 +109,7 @@ func (h *Handler) WsConnect(c *gin.Context) {
 	//	}
 	//}(conn)
 
-	client := ws.NewClient(nil, conn, h.lobbyService, h.logger)
+	client := ws.NewClient(nil, conn, h.lobbyService, h.userService, h.logger)
 
 	go client.WritePump()
 	go client.ReadPump()
