@@ -24,7 +24,7 @@ const (
 
 type LobbyService interface {
 	CreateLobby(ctx context.Context, userId string) (*Hub, error)
-	GetLobbies(ctx context.Context) map[string]GetLobbyDto
+	GetLobbies(ctx context.Context) map[string]model.Lobby
 	JoinLobby(ctx context.Context, lobbyId string, userId string) (*Hub, error)
 	DeleteLobby(ctx context.Context, idLobby string) error
 	LeftLobby(ctx context.Context, lobbyId string, userId string) (*Hub, error)

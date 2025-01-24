@@ -8,7 +8,7 @@ const (
 	SuperGameType             = "SuperGame"
 )
 
-// status
+// StartStatus status
 const (
 	StartStatus = "startStatus"
 )
@@ -20,4 +20,9 @@ type Session struct {
 	Question Question    `json:"question"`
 	Status   string      `json:"status"`
 	IsWin    bool        `json:"isWin"`
+}
+
+type Round struct {
+	Id       string    `json:"id"`
+	Sessions []Session `json:"sessions"`
 }

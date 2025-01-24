@@ -150,10 +150,11 @@ func (c *Client) ReadPump() {
 
 			c.Hub.Register <- c
 
-			lobbyDto := GetLobbyDto{
+			lobbyDto := model.Lobby{
 				Id:       hub.Id,
 				Owner:    hub.Lobby.Owner,
 				Players:  hub.Lobby.Players,
+				Rounds:   hub.Lobby.Rounds,
 				Settings: hub.Lobby.Settings,
 			}
 
@@ -224,10 +225,11 @@ func (c *Client) ReadPump() {
 			c.User = u
 			c.Hub.Register <- c
 
-			lobbyDto := GetLobbyDto{
+			lobbyDto := model.Lobby{
 				Id:       hub.Id,
 				Owner:    hub.Lobby.Owner,
 				Players:  hub.Lobby.Players,
+				Rounds:   hub.Lobby.Rounds,
 				Settings: hub.Lobby.Settings,
 			}
 
@@ -292,10 +294,11 @@ func (c *Client) ReadPump() {
 				break
 			}
 
-			lobbyDto := GetLobbyDto{
+			lobbyDto := model.Lobby{
 				Id:       hub.Id,
 				Owner:    hub.Lobby.Owner,
 				Players:  hub.Lobby.Players,
+				Rounds:   hub.Lobby.Rounds,
 				Settings: hub.Lobby.Settings,
 			}
 

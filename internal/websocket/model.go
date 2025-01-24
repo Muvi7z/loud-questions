@@ -24,13 +24,6 @@ type JoinLobbyDto struct {
 	LobbyId string `json:"lobbyId"`
 }
 
-type GetLobbyDto struct {
-	Id       string              `json:"id"`
-	Owner    string              `json:"owner"`
-	Players  []model.User        `json:"users"`
-	Settings model.SettingsLobby `json:"settings"`
-}
-
 type GetSessionDto struct {
 	Id     string `json:"id"`
 	Leader string `json:"leader"`

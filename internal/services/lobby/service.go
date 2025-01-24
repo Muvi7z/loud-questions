@@ -12,7 +12,6 @@ import (
 	"loud-question/internal/websocket"
 )
 
-// Service
 type Service struct {
 	logger *slog.Logger
 	users  map[string]model.User
@@ -75,9 +74,17 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hu
 	}
 
 	l := model.Lobby{
-		Owner:    userId,
-		Players:  []model.User{u},
-		Settings: model.SettingsLobby{},
+		Owner:   userId,
+		Players: []model.User{u},
+		Settings: model.SettingsLobby{
+			SessionCount: 4,
+		},
+		Rounds: []model.Round{
+			{
+				Id:       uuid.New().String(),
+				Sessions: nil,
+			},
+		},
 	}
 
 	questionService := question.New()
@@ -147,11 +154,11 @@ func (s *Service) GetLobby(ctx context.Context, username string) model.Lobby {
 	panic("implement me")
 }
 
-func (s *Service) GetLobbies(ctx context.Context) map[string]websocket.GetLobbyDto {
-	ls := make(map[string]websocket.GetLobbyDto)
+func (s *Service) GetLobbies(ctx context.Context) map[string]model.Lobby {
+	ls := make(map[string]model.Lobby)
 
 	for k, v := range s.hubs {
-		ls[k] = websocket.GetLobbyDto{
+		ls[k] = model.Lobby{
 			Id:       v.Id,
 			Owner:    v.Lobby.Owner,
 			Players:  v.Lobby.Players,
