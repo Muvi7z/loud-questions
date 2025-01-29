@@ -23,9 +23,7 @@ func New(l *slog.Logger, questionService question.QuestionsService) *Service {
 	}
 }
 
-func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Session, error) {
-
-	//Рандомим ведущего
+func (s *Service) CreateSession(ctx context.Context, leaderId string, sessionType model.SessionType) (model.Session, error) {
 
 	q, err := s.QuestionService.GetRandomQuestion()
 	if err != nil {
@@ -36,8 +34,8 @@ func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Se
 
 	session := model.Session{
 		Id:       sessionID,
-		Type:     model.QuestionType,
-		LeaderId: "4",
+		Type:     sessionType,
+		LeaderId: leaderId,
 		Status:   model.StartStatus,
 		Question: q,
 	}
@@ -45,4 +43,5 @@ func (s *Service) StartSession(ctx context.Context, lobby model.Lobby) (model.Se
 	s.Sessions[sessionID] = session
 
 	return session, nil
+
 }

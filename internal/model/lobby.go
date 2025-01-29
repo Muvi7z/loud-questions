@@ -1,11 +1,13 @@
 package model
 
 type Lobby struct {
-	Id       string        `json:"id"`
-	Owner    string        `json:"owner"`
-	Players  []User        `json:"users"`
-	Rounds   []Round       `json:"rounds"`
-	Settings SettingsLobby `json:"settings"`
+	Id             string        `json:"id"`
+	Owner          string        `json:"owner"`
+	Players        []User        `json:"users"`
+	Rounds         []Round       `json:"rounds"`
+	CurrentRound   string        `json:"currentRound"`
+	CurrentSession string        `json:"currentSession"`
+	Settings       SettingsLobby `json:"settings"`
 }
 
 type Question struct {
@@ -17,9 +19,8 @@ type Question struct {
 
 type SettingsLobby struct {
 	Leaders      []string `json:"leaders"`
-	Time         int32    `json:"time"`
-	SessionCount int32    `json:"sessionCount"`
-	SessionRound int32    `json:"sessionRound"`
-	//Количество сессии
-	//Количество раундов
+	Time         int      `json:"time"`
+	SessionCount int      `json:"sessionCount"`
+	RoundCount   int      `json:"roundCount"`
+	//Время даваемое за вопрос
 }

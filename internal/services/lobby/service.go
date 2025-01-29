@@ -3,6 +3,7 @@ package lobby
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/sqids/sqids-go"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"loud-question/internal/websocket"
 )
 
+// Управляет хабами
 type Service struct {
 	logger *slog.Logger
 	users  map[string]model.User
@@ -72,16 +74,19 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hu
 		s.logger.Error("user not found", userId)
 		return nil, errors.New("user not found")
 	}
-
+	roundId := uuid.New().String()
 	l := model.Lobby{
 		Owner:   userId,
 		Players: []model.User{u},
 		Settings: model.SettingsLobby{
 			SessionCount: 4,
+			RoundCount:   1,
+			Time:         90,
 		},
+		CurrentRound: roundId,
 		Rounds: []model.Round{
 			{
-				Id:       uuid.New().String(),
+				Id:       roundId,
 				Sessions: nil,
 			},
 		},
@@ -107,7 +112,7 @@ func (s *Service) JoinLobby(ctx context.Context, lobbyId string, userId string) 
 		if err != nil {
 			return nil, err
 		}
-
+		fmt.Println()
 		existPlayer := false
 		for _, player := range h.Lobby.Players {
 			if player.Uuid == userId {
@@ -150,6 +155,48 @@ func (s *Service) LeftLobby(ctx context.Context, lobbyId string, userId string) 
 	return nil, errors.New("not found lobby")
 }
 
+func (s *Service) StartSession(lobbyId string) (model.Session, error) {
+	if h, ok := s.hubs[lobbyId]; ok {
+		if len(h.Lobby.Settings.Leaders) > 0 {
+			//Рандомим ведущего
+			var session model.Session
+			var err error
+
+			for i, r := range h.Lobby.Rounds {
+				if h.Lobby.CurrentRound == r.Id {
+					if len(r.Sessions) > h.Lobby.Settings.SessionCount {
+						session, err = h.RoundService.CreateSession(context.Background(), h.Lobby.Settings.Leaders[0], model.SuperGameType)
+						if err != nil {
+							return model.Session{}, err
+						}
+
+					} else {
+						session, err = h.RoundService.CreateSession(context.Background(), h.Lobby.Settings.Leaders[0], model.QuestionType)
+						if err != nil {
+							return model.Session{}, err
+						}
+					}
+					r.Sessions = append(r.Sessions, session)
+					h.Lobby.Rounds[i] = r
+					h.Lobby.CurrentSession = session.Id
+					return session, nil
+				}
+			}
+
+		}
+	}
+	return model.Session{}, errors.New("no leader set")
+}
+
+func (s *Service) ChangeSettings(ctx context.Context, lobbyId string, newSettings model.SettingsLobby) error {
+	if h, ok := s.hubs[lobbyId]; ok {
+		h.Lobby.Settings = newSettings
+		return nil
+	}
+
+	return errors.New("not found lobby")
+}
+
 func (s *Service) GetLobby(ctx context.Context, username string) model.Lobby {
 	panic("implement me")
 }
@@ -166,4 +213,8 @@ func (s *Service) GetLobbies(ctx context.Context) map[string]model.Lobby {
 		}
 	}
 	return ls
+}
+
+func (s *Service) GetHubs() map[string]*websocket.Hub {
+	return s.hubs
 }

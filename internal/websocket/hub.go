@@ -20,18 +20,22 @@ const (
 	reconnectLobby = "reconnectLobby"
 	leftLobby      = "leftLobby"
 	deleteLobby    = "deleteLobby"
+	changeSettings = "changeSettings"
 )
 
 type LobbyService interface {
 	CreateLobby(ctx context.Context, userId string) (*Hub, error)
 	GetLobbies(ctx context.Context) map[string]model.Lobby
+	GetHubs() map[string]*Hub
 	JoinLobby(ctx context.Context, lobbyId string, userId string) (*Hub, error)
 	DeleteLobby(ctx context.Context, idLobby string) error
+	ChangeSettings(ctx context.Context, idLobby string, newSettings model.SettingsLobby) error
 	LeftLobby(ctx context.Context, lobbyId string, userId string) (*Hub, error)
+	StartSession(lobbyId string) (model.Session, error)
 }
 
-type SessionService interface {
-	StartSession(ctx context.Context, lobby model.Lobby) (model.Session, error)
+type RoundService interface {
+	CreateSession(ctx context.Context, leaderId string, sessionType model.SessionType) (model.Session, error)
 }
 
 type UserService interface {
@@ -41,28 +45,28 @@ type UserService interface {
 }
 
 type Hub struct {
-	Id             string
-	Clients        map[string]*Client
-	Broadcast      chan Message
-	Register       chan *Client
-	Unregister     chan *Client
-	Logger         *slog.Logger
-	Lobby          model.Lobby
-	lobbyService   LobbyService
-	sessionService SessionService
+	Id           string
+	Clients      map[string]*Client
+	Broadcast    chan Message
+	Register     chan *Client
+	Unregister   chan *Client
+	Logger       *slog.Logger
+	Lobby        model.Lobby
+	lobbyService LobbyService
+	RoundService RoundService
 }
 
-func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby model.Lobby, sessionService SessionService) *Hub {
+func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby model.Lobby, roundService RoundService) *Hub {
 	return &Hub{
-		Id:             id,
-		Clients:        make(map[string]*Client),
-		Broadcast:      make(chan Message),
-		Register:       make(chan *Client),
-		Unregister:     make(chan *Client),
-		Logger:         logger,
-		Lobby:          lobby,
-		lobbyService:   lobbyService,
-		sessionService: sessionService,
+		Id:           id,
+		Clients:      make(map[string]*Client),
+		Broadcast:    make(chan Message),
+		Register:     make(chan *Client),
+		Unregister:   make(chan *Client),
+		Logger:       logger,
+		Lobby:        lobby,
+		lobbyService: lobbyService,
+		RoundService: roundService,
 	}
 }
 
@@ -112,6 +116,46 @@ func (h *Hub) Run() {
 			fmt.Println(h.Clients)
 
 			switch message.Type {
+			case changeSettings:
+				for _, client := range h.Clients {
+					var data model.SettingsLobby
+					err := json.Unmarshal(message.Data, &data)
+					if err != nil {
+						msg, _ := json.Marshal(ErrorMessage{
+							Message: "invalid credentials",
+							Code:    "400",
+						})
+						client.Send <- msg
+						break
+					}
+
+					err = h.lobbyService.ChangeSettings(context.Background(), h.Id, data)
+					if err != nil {
+						msg, _ := json.Marshal(ErrorMessage{
+							Message: err.Error(),
+							Code:    "500",
+						})
+						client.Send <- msg
+						break
+					}
+
+					settingRes, _ := json.Marshal(h.Lobby.Settings)
+
+					response := Message{
+						Type: changeSettings,
+						Data: settingRes,
+					}
+
+					// удалить из лобби
+					resByte, err := json.Marshal(&response)
+					if err != nil {
+						h.Logger.Error("ошибка при выполнении marshal")
+						break
+					}
+					client.Send <- resByte
+
+				}
+
 			case joinLobby:
 				for _, client := range h.Clients {
 					resByte, err := json.Marshal(&message)
@@ -137,42 +181,40 @@ func (h *Hub) Run() {
 				}
 				return
 			case startSession:
+				session, err := h.lobbyService.StartSession(h.Id)
+				if err != nil {
+					return
+				}
+
+				resData, _ := json.Marshal(StartSessionDto{
+					Session: session,
+				})
+
+				response := Message{
+					Type:   startSession,
+					SendBy: message.SendBy,
+					Data:   resData,
+				}
+
+				msgByte, err := json.Marshal(&response)
+				if err != nil {
+					h.Logger.Error("ошибка при выполнении marshal")
+					break
+				}
 				for _, client := range h.Clients {
-
-					session, err := h.sessionService.StartSession(context.Background(), h.Lobby)
-					if err != nil {
-						return
-					}
-
-					resData, _ := json.Marshal(StartSessionDto{
-						Session: session,
-					})
-
-					response := Message{
-						Type:   "startSession",
-						SendBy: message.SendBy,
-						Data:   resData,
-					}
-
-					msgByte, err := json.Marshal(&response)
-					if err != nil {
-						h.Logger.Error("ошибка при выполнении marshal")
-						break
-					}
-
 					client.Send <- msgByte
 
 				}
 			case endSession:
 				for _, client := range h.Clients {
 
-					session, err := h.sessionService.StartSession(context.Background(), h.Lobby)
-					if err != nil {
-						return
-					}
+					//session, err := h.roundService.StartSession(context.Background(), h.Lobby)
+					//if err != nil {
+					//	return
+					//}
 
 					resData, _ := json.Marshal(StartSessionDto{
-						Session: session,
+						Session: model.Session{},
 					})
 
 					response := Message{

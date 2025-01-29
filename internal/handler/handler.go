@@ -43,6 +43,7 @@ func (h *Handler) Register(router *gin.Engine) *gin.Engine {
 	router.GET("/users", h.GetUsers)
 	router.GET("/user/:userId", h.GetUser)
 	router.GET("/lobbies", h.GetLobbies)
+	router.GET("/hubs", h.GetHubs)
 	return router
 }
 
@@ -90,6 +91,12 @@ func (h *Handler) GetLobbies(c *gin.Context) {
 	fmt.Println(lobbies)
 
 	c.JSON(200, lobbies)
+}
+
+func (h *Handler) GetHubs(c *gin.Context) {
+	hubs := h.lobbyService.GetHubs()
+
+	c.JSON(200, &hubs)
 }
 
 func (h *Handler) WsConnect(c *gin.Context) {

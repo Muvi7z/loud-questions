@@ -104,6 +104,11 @@ func (c *Client) ReadPump() {
 		}
 
 		switch msgDto.Type {
+		case changeSettings:
+
+			c.logger.Info("attending to change settings lobby")
+
+			c.Hub.Broadcast <- msgDto
 		case createLobby:
 			// Добавить удаление из предыдущего лобби
 			c.logger.Info("attending to create lobby")
@@ -226,11 +231,13 @@ func (c *Client) ReadPump() {
 			c.Hub.Register <- c
 
 			lobbyDto := model.Lobby{
-				Id:       hub.Id,
-				Owner:    hub.Lobby.Owner,
-				Players:  hub.Lobby.Players,
-				Rounds:   hub.Lobby.Rounds,
-				Settings: hub.Lobby.Settings,
+				Id:             hub.Id,
+				Owner:          hub.Lobby.Owner,
+				Players:        hub.Lobby.Players,
+				Rounds:         hub.Lobby.Rounds,
+				CurrentRound:   hub.Lobby.CurrentRound,
+				CurrentSession: hub.Lobby.CurrentSession,
+				Settings:       hub.Lobby.Settings,
 			}
 
 			lobbyByte, _ := json.Marshal(&lobbyDto)
@@ -257,17 +264,6 @@ func (c *Client) ReadPump() {
 			c.logger.Info("attending to join lobby", data.LobbyId)
 
 			ctx := context.Background()
-
-			//u, err := c.userGetter.GetUser(ctx, data.UserId)
-			//if err != nil {
-			//	c.logger.Error(err.Error())
-			//	msg, _ := json.Marshal(ErrorMessage{
-			//		Message: err.Error(),
-			//		Code:    "404",
-			//	})
-			//	c.Send <- msg
-			//	break
-			//}
 
 			hub, err := c.lobbyService.JoinLobby(ctx, data.LobbyId, data.UserId)
 			if err != nil {
