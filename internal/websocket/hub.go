@@ -6,18 +6,21 @@ import (
 	"fmt"
 	"log/slog"
 	"loud-question/internal/model"
+	"sync"
+	"time"
 )
 
 const (
 	sendMessage  = "sendMessage"
 	startSession = "startSession"
 	endSession   = "endSession"
+	startGame    = "startGame"
+	joinGame     = "joinGame"
 )
 
 const (
 	createLobby    = "createLobby"
 	joinLobby      = "joinLobby"
-	reconnectLobby = "reconnectLobby"
 	leftLobby      = "leftLobby"
 	deleteLobby    = "deleteLobby"
 	changeSettings = "changeSettings"
@@ -45,15 +48,18 @@ type UserService interface {
 }
 
 type Hub struct {
-	Id           string
-	Clients      map[string]*Client
-	Broadcast    chan Message
-	Register     chan *Client
-	Unregister   chan *Client
-	Logger       *slog.Logger
-	Lobby        model.Lobby
-	lobbyService LobbyService
-	RoundService RoundService
+	Id            string
+	Clients       map[string]*Client
+	Broadcast     chan Message
+	Register      chan *Client
+	Unregister    chan *Client
+	Logger        *slog.Logger
+	Lobby         model.Lobby
+	lobbyService  LobbyService
+	RoundService  RoundService
+	mu            sync.Mutex
+	startGameTime time.Time
+	gameTimer     *time.Timer
 }
 
 func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby model.Lobby, roundService RoundService) *Hub {
@@ -68,6 +74,26 @@ func NewHub(logger *slog.Logger, lobbyService LobbyService, id string, lobby mod
 		lobbyService: lobbyService,
 		RoundService: roundService,
 	}
+}
+
+func (h *Hub) StartGame(ctx context.Context) {
+	for i, r := range h.Lobby.Rounds {
+		if h.Lobby.CurrentRound == r.Id {
+			for j, s := range r.Sessions {
+				if h.Lobby.CurrentSession == s.Id {
+					h.Lobby.Rounds[i].Sessions[j].Status = model.StartStatus
+				}
+			}
+
+		}
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.startGameTime = time.Now()
+	h.gameTimer = time.NewTimer(time.Duration(h.Lobby.Settings.Time) * time.Second)
+	go func() {
+		<-h.gameTimer.C
+	}()
 }
 
 // Run Запуск хаба, получение сообщение и отправление ответа другим клиентам
@@ -155,6 +181,73 @@ func (h *Hub) Run() {
 					client.Send <- resByte
 
 				}
+			case startGame:
+				//Начинаем игру запускаем таймер
+				h.StartGame(context.Background())
+
+				for _, client := range h.Clients {
+					lobbyDto := model.Lobby{
+						Id:             h.Id,
+						Owner:          h.Lobby.Owner,
+						Players:        h.Lobby.Players,
+						Rounds:         h.Lobby.Rounds,
+						CurrentRound:   h.Lobby.CurrentRound,
+						CurrentSession: h.Lobby.CurrentSession,
+						Settings:       h.Lobby.Settings,
+					}
+					lobbyByte, err := json.Marshal(&lobbyDto)
+					if err != nil {
+						h.Logger.Error("ошибка при выполнении marshal")
+						break
+					}
+
+					msg := Message{
+						Type:   message.Type,
+						SendBy: message.SendBy,
+						Data:   lobbyByte,
+					}
+
+					msgByte, err := json.Marshal(&msg)
+					if err != nil {
+						h.Logger.Error("ошибка при выполнении marshal")
+						break
+					}
+					client.Send <- msgByte
+
+				}
+			case joinGame:
+				h.mu.Lock()
+
+				elapsed := time.Since(h.startGameTime)
+				remaining := time.Duration(h.Lobby.Settings.Time)*time.Second - elapsed
+
+				res := JoinGameDto{
+					TimeGame:      int(remaining.Seconds()),
+					MusicPosition: 0,
+				}
+
+				resByte, _ := json.Marshal(res)
+
+				msg := Message{
+					Type:   message.Type,
+					SendBy: message.SendBy,
+					Data:   resByte,
+				}
+				msgByte, err := json.Marshal(&msg)
+				if err != nil {
+					h.Logger.Error("ошибка при выполнении marshal")
+					break
+				}
+
+				for _, client := range h.Clients {
+					if client.User.Uuid == message.SendBy {
+
+					}
+					client.Send <- msgByte
+
+				}
+
+				h.mu.Unlock()
 
 			case joinLobby:
 				for _, client := range h.Clients {

@@ -8,9 +8,11 @@ const (
 	SuperGameType             = "SuperGame"
 )
 
-// StartStatus status
+// status session
 const (
-	StartStatus = "startStatus"
+	StartStatus = "start"
+	WaitStatus  = "wait"
+	EndStatus   = "end"
 )
 
 type Session struct {

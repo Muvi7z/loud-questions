@@ -249,6 +249,14 @@ func (c *Client) ReadPump() {
 			}
 
 			c.Hub.Broadcast <- msgRes
+		case startGame:
+			c.logger.Info("starting game")
+
+			c.Hub.Broadcast <- msgDto
+		case joinGame:
+			c.logger.Info("starting game")
+
+			c.Hub.Broadcast <- msgDto
 		case leftLobby:
 			var data JoinLobbyDto
 			err := json.Unmarshal(msgDto.Data, &data)
@@ -314,14 +322,6 @@ func (c *Client) ReadPump() {
 			}
 
 		}
-
-		// создаем или подключаемся к хабу
-
-		//обращаемся в сервис для создания, возвращает хабу
-
-		//через горутину запускаем слушителя сообщений в хабу
-
-		//там будут методы для изменения локального лобби игры
 
 	}
 }

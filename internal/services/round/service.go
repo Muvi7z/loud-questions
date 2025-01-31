@@ -36,7 +36,7 @@ func (s *Service) CreateSession(ctx context.Context, leaderId string, sessionTyp
 		Id:       sessionID,
 		Type:     sessionType,
 		LeaderId: leaderId,
-		Status:   model.StartStatus,
+		Status:   model.WaitStatus,
 		Question: q,
 	}
 
