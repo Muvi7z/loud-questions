@@ -20,8 +20,10 @@ type StartSessionDto struct {
 }
 
 type JoinGameDto struct {
-	TimeGame      int   `json:"timeGame"`
-	MusicPosition int64 `json:"musicPosition"`
+	TimeGame      int           `json:"timeGame"`
+	MusicPosition int64         `json:"musicPosition"`
+	Session       model.Session `json:"session"`
+	Lobby         model.Lobby   `json:"lobby"`
 }
 
 type JoinLobbyDto struct {

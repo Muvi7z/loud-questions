@@ -76,6 +76,7 @@ func (s *Service) CreateLobby(ctx context.Context, userId string) (*websocket.Hu
 	}
 	roundId := uuid.New().String()
 	l := model.Lobby{
+		Id:      id,
 		Owner:   userId,
 		Players: []model.User{u},
 		Settings: model.SettingsLobby{

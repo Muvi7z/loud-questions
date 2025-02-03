@@ -184,46 +184,62 @@ func (h *Hub) Run() {
 			case startGame:
 				//Начинаем игру запускаем таймер
 				h.StartGame(context.Background())
+				lobbyDto := model.Lobby{
+					Id:             h.Id,
+					Owner:          h.Lobby.Owner,
+					Players:        h.Lobby.Players,
+					Rounds:         h.Lobby.Rounds,
+					CurrentRound:   h.Lobby.CurrentRound,
+					CurrentSession: h.Lobby.CurrentSession,
+					Settings:       h.Lobby.Settings,
+				}
+
+				lobbyByte, err := json.Marshal(&lobbyDto)
+				if err != nil {
+					h.Logger.Error("ошибка при выполнении marshal")
+					break
+				}
+
+				msg := Message{
+					Type:   message.Type,
+					SendBy: message.SendBy,
+					Data:   lobbyByte,
+				}
+
+				msgByte, err := json.Marshal(&msg)
+				if err != nil {
+					h.Logger.Error("ошибка при выполнении marshal")
+					break
+				}
 
 				for _, client := range h.Clients {
-					lobbyDto := model.Lobby{
-						Id:             h.Id,
-						Owner:          h.Lobby.Owner,
-						Players:        h.Lobby.Players,
-						Rounds:         h.Lobby.Rounds,
-						CurrentRound:   h.Lobby.CurrentRound,
-						CurrentSession: h.Lobby.CurrentSession,
-						Settings:       h.Lobby.Settings,
-					}
-					lobbyByte, err := json.Marshal(&lobbyDto)
-					if err != nil {
-						h.Logger.Error("ошибка при выполнении marshal")
-						break
-					}
-
-					msg := Message{
-						Type:   message.Type,
-						SendBy: message.SendBy,
-						Data:   lobbyByte,
-					}
-
-					msgByte, err := json.Marshal(&msg)
-					if err != nil {
-						h.Logger.Error("ошибка при выполнении marshal")
-						break
-					}
 					client.Send <- msgByte
-
 				}
+
 			case joinGame:
 				h.mu.Lock()
-
+				var session model.Session
 				elapsed := time.Since(h.startGameTime)
-				remaining := time.Duration(h.Lobby.Settings.Time)*time.Second - elapsed
+				remaining := 19000*time.Second - elapsed //time.Duration(h.Lobby.Settings.Time)
+				if remaining < 0 {
+					remaining = 0
+				}
 
+				for _, r := range h.Lobby.Rounds {
+					if h.Lobby.CurrentRound == r.Id {
+						for _, s := range r.Sessions {
+							if h.Lobby.CurrentSession == s.Id {
+								session = s
+							}
+						}
+
+					}
+				}
 				res := JoinGameDto{
 					TimeGame:      int(remaining.Seconds()),
 					MusicPosition: 0,
+					Lobby:         h.Lobby,
+					Session:       session,
 				}
 
 				resByte, _ := json.Marshal(res)

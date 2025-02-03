@@ -63,6 +63,37 @@ func NewClient(hub *Hub, conn *websocket.Conn, lobbyService LobbyService, userGe
 	}
 }
 
+func (c *Client) JoinLobby(data JoinLobbyDto) (model.Lobby, error) {
+	c.logger.Info("attending to join lobby", data.LobbyId)
+
+	ctx := context.Background()
+
+	u, err := c.userGetter.GetUser(ctx, data.UserId)
+	if err != nil {
+		return model.Lobby{}, err
+	}
+
+	hub, err := c.lobbyService.JoinLobby(ctx, data.LobbyId, data.UserId)
+	if err != nil {
+		return model.Lobby{}, err
+	}
+
+	lobbyDto := model.Lobby{
+		Id:             hub.Id,
+		Owner:          hub.Lobby.Owner,
+		Players:        hub.Lobby.Players,
+		Rounds:         hub.Lobby.Rounds,
+		CurrentRound:   hub.Lobby.CurrentRound,
+		CurrentSession: hub.Lobby.CurrentSession,
+		Settings:       hub.Lobby.Settings,
+	}
+
+	c.Hub = hub
+	c.User = u
+	c.Hub.Register <- c
+	return lobbyDto, nil
+}
+
 // ReadPump Получиение сообщений от клиента и отправка в хаб
 func (c *Client) ReadPump() {
 	defer func() {
@@ -178,6 +209,7 @@ func (c *Client) ReadPump() {
 			var data JoinLobbyDto
 			err := json.Unmarshal(msgDto.Data, &data)
 			if err != nil {
+				c.logger.Error(err.Error())
 				msg, _ := json.Marshal(ErrorMessage{
 					Message: "invalid credentials",
 					Code:    "400",
@@ -186,22 +218,7 @@ func (c *Client) ReadPump() {
 				break
 			}
 
-			c.logger.Info("attending to join lobby", data.LobbyId)
-
-			ctx := context.Background()
-
-			u, err := c.userGetter.GetUser(ctx, data.UserId)
-			if err != nil {
-				c.logger.Error(err.Error())
-				msg, _ := json.Marshal(ErrorMessage{
-					Message: err.Error(),
-					Code:    "404",
-				})
-				c.Send <- msg
-				break
-			}
-
-			hub, err := c.lobbyService.JoinLobby(ctx, data.LobbyId, data.UserId)
+			lobbyDto, err := c.JoinLobby(data)
 			if err != nil {
 				c.logger.Error(err.Error())
 				var msg []byte
@@ -226,20 +243,6 @@ func (c *Client) ReadPump() {
 				break
 			}
 
-			c.Hub = hub
-			c.User = u
-			c.Hub.Register <- c
-
-			lobbyDto := model.Lobby{
-				Id:             hub.Id,
-				Owner:          hub.Lobby.Owner,
-				Players:        hub.Lobby.Players,
-				Rounds:         hub.Lobby.Rounds,
-				CurrentRound:   hub.Lobby.CurrentRound,
-				CurrentSession: hub.Lobby.CurrentSession,
-				Settings:       hub.Lobby.Settings,
-			}
-
 			lobbyByte, _ := json.Marshal(&lobbyDto)
 
 			msgRes := Message{
@@ -254,9 +257,53 @@ func (c *Client) ReadPump() {
 
 			c.Hub.Broadcast <- msgDto
 		case joinGame:
-			c.logger.Info("starting game")
+			var data JoinLobbyDto
+			err := json.Unmarshal(msgDto.Data, &data)
+			if err != nil {
+				c.logger.Error(err.Error())
+				msg, _ := json.Marshal(ErrorMessage{
+					Message: "invalid credentials",
+					Code:    "400",
+				})
+				c.Send <- msg
+				break
+			}
+
+			_, err = c.JoinLobby(data)
+			if err != nil {
+				c.logger.Error(err.Error())
+				var msg []byte
+				if errors.Is(err, ErrPlayerExistLobby) {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusBadRequest),
+					})
+				} else if errors.Is(err, ErrUserNotFound) {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusNotFound),
+					})
+				} else {
+					msg, _ = json.Marshal(ErrorMessage{
+						Message: err.Error(),
+						Code:    strconv.Itoa(http.StatusBadRequest),
+					})
+				}
+
+				c.Send <- msg
+				break
+			}
+
+			//lobbyByte, _ := json.Marshal(&lobbyDto)
+			//
+			//msgRes := Message{
+			//	Type:   joinLobby,
+			//	SendBy: data.UserId,
+			//	Data:   lobbyByte,
+			//}
 
 			c.Hub.Broadcast <- msgDto
+
 		case leftLobby:
 			var data JoinLobbyDto
 			err := json.Unmarshal(msgDto.Data, &data)
