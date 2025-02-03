@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"log"
 	"log/slog"
 	"loud-question/internal/model"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -373,6 +375,34 @@ func (c *Client) ReadPump() {
 	}
 }
 
+func (c *Client) StreamAudio() {
+	file, err := os.Open("rb.mp3") // Укажите путь к вашему аудиофайлу
+	if err != nil {
+		log.Println("Ошибка при открытии файла:", err)
+		return
+	}
+	defer file.Close()
+
+	buffer := make([]byte, 4096) // Размер блока (можно изменить)
+	for {
+		n, err := file.Read(buffer)
+		if err != nil {
+			log.Println("Конец файла или ошибка чтения:", err)
+			break
+		}
+
+		// Отправляем блок данных клиенту
+		err = c.conn.WriteMessage(websocket.BinaryMessage, buffer[:n])
+		if err != nil {
+			log.Println("Ошибка при отправке данных:", err)
+			break
+		}
+
+		// Небольшая задержка, чтобы эмулировать потоковое воспроизведение
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 
@@ -387,6 +417,7 @@ func (c *Client) WritePump() {
 	for {
 		select {
 		case msg, ok := <-c.Send:
+
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				err := c.conn.WriteMessage(websocket.CloseMessage, []byte{})

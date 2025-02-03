@@ -213,6 +213,7 @@ func (h *Hub) Run() {
 				}
 
 				for _, client := range h.Clients {
+					client.StreamAudio()
 					client.Send <- msgByte
 				}
 
