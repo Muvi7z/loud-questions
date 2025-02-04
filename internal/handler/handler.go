@@ -4,9 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"io"
+	"log"
 	"log/slog"
 	ws "loud-question/internal/websocket"
 	"net/http"
+	"os"
+	"strconv"
+	"sync"
 )
 
 type Handler struct {
@@ -44,7 +49,67 @@ func (h *Handler) Register(router *gin.Engine) *gin.Engine {
 	router.GET("/user/:userId", h.GetUser)
 	router.GET("/lobbies", h.GetLobbies)
 	router.GET("/hubs", h.GetHubs)
+	router.GET("/song", h.GetSong)
 	return router
+}
+
+func (h *Handler) GetSong(c *gin.Context) {
+	rangeHeader := c.GetHeader("Range")
+	if rangeHeader == "" {
+		return
+	}
+
+	file, err := os.Open("rb.mp3") // Укажите путь к вашему аудиофайлу
+	if err != nil {
+		log.Println("Ошибка при открытии файла:", err)
+		return
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+
+	fileSize := fileInfo.Size()
+
+	start, end, err := ParseRangeHeader(rangeHeader, fileSize)
+
+	/////Write
+	c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Content-Length", strconv.FormatInt(end-start+1, 10))
+	c.Header("Content-Type", "audio/mpeg")
+
+	dataChan := make(chan []byte)
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		buffer := make([]byte, 1024) // 1KB buffer size
+		bytesToRead := end - start + 1
+		for bytesToRead > 0 {
+			n, err := file.Read(buffer)
+			if err != nil && err != io.EOF {
+				c.AbortWithStatus(http.StatusInternalServerError)
+				return
+			}
+			if n == 0 {
+				break
+			}
+			if int64(n) > bytesToRead {
+				n = int(bytesToRead)
+			}
+			dataChan <- buffer[:n]
+			bytesToRead -= int64(n)
+		}
+		close(dataChan)
+	}()
+
+	go func() {
+		defer wg.Wait()
+		for chunk := range dataChan {
+			c.Data(http.StatusOK, "audio/mpeg", chunk)
+		}
+	}()
 }
 
 func (h *Handler) SignUp(c *gin.Context) {
