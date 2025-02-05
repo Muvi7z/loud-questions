@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"io"
 	"log"
 	"log/slog"
 	ws "loud-question/internal/websocket"
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 )
 
 type Handler struct {
@@ -78,38 +76,57 @@ func (h *Handler) GetSong(c *gin.Context) {
 	c.Header("Content-Length", strconv.FormatInt(end-start+1, 10))
 	c.Header("Content-Type", "audio/mpeg")
 
-	dataChan := make(chan []byte)
-	var wg sync.WaitGroup
-	wg.Add(1)
+	file.Seek(start, 0)
+	buffer := make([]byte, 1024*8)
+	toSend := end - start + 1
 
-	go func() {
-		defer wg.Done()
-		buffer := make([]byte, 1024) // 1KB buffer size
-		bytesToRead := end - start + 1
-		for bytesToRead > 0 {
-			n, err := file.Read(buffer)
-			if err != nil && err != io.EOF {
-				c.AbortWithStatus(http.StatusInternalServerError)
-				return
-			}
-			if n == 0 {
-				break
-			}
-			if int64(n) > bytesToRead {
-				n = int(bytesToRead)
-			}
-			dataChan <- buffer[:n]
-			bytesToRead -= int64(n)
+	for toSend > 0 {
+		n, err := file.Read(buffer)
+		if err != nil {
+			break
 		}
-		close(dataChan)
-	}()
+		if int64(n) > toSend {
+			n = int(toSend)
+		}
 
-	go func() {
-		defer wg.Wait()
-		for chunk := range dataChan {
-			c.Data(http.StatusOK, "audio/mpeg", chunk)
-		}
-	}()
+		c.Data(http.StatusPartialContent, "audio/mpeg", buffer[:n])
+		toSend -= int64(n)
+	}
+
+	//dataChan := make(chan []byte)
+	//var wg sync.WaitGroup
+	//wg.Add(1)
+
+	//go func() {
+	//
+	//	defer wg.Done()
+	//
+	//	buffer := make([]byte, 1024) // 1KB buffer size
+	//	bytesToRead := end - start + 1
+	//	for bytesToRead > 0 {
+	//		n, err := file.Read(buffer)
+	//		if err != nil && err != io.EOF {
+	//			c.AbortWithStatus(http.StatusInternalServerError)
+	//			return
+	//		}
+	//		if n == 0 {
+	//			break
+	//		}
+	//		if int64(n) > bytesToRead {
+	//			n = int(bytesToRead)
+	//		}
+	//		dataChan <- buffer[:n]
+	//		bytesToRead -= int64(n)
+	//	}
+	//	close(dataChan)
+	//}()
+	//
+	//go func() {
+	//	defer wg.Wait()
+	//	for chunk := range dataChan {
+	//		c.Data(http.StatusOK, "audio/mpeg", chunk)
+	//	}
+	//}()
 }
 
 func (h *Handler) SignUp(c *gin.Context) {
