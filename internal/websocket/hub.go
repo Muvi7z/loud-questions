@@ -213,15 +213,15 @@ func (h *Hub) Run() {
 				}
 
 				for _, client := range h.Clients {
-					client.StreamAudio()
 					client.Send <- msgByte
+					//client.StreamAudio()
 				}
 
 			case joinGame:
 				h.mu.Lock()
 				var session model.Session
 				elapsed := time.Since(h.startGameTime)
-				remaining := 19000*time.Second - elapsed //time.Duration(h.Lobby.Settings.Time)
+				remaining := 90*time.Second - elapsed //time.Duration(h.Lobby.Settings.Time)
 				if remaining < 0 {
 					remaining = 0
 				}
@@ -238,7 +238,7 @@ func (h *Hub) Run() {
 				}
 				res := JoinGameDto{
 					TimeGame:      int(remaining.Seconds()),
-					MusicPosition: 0,
+					MusicPosition: int64(h.Lobby.Settings.Time*1000) - remaining.Milliseconds(),
 					Lobby:         h.Lobby,
 					Session:       session,
 				}
